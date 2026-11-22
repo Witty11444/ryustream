@@ -390,6 +390,8 @@ def play_video(params):
         xbmcgui.Dialog().notification("Playback Error", str(e), xbmcgui.NOTIFICATION_ERROR)
 class RyuHomeWindow(xbmcgui.WindowXML):
     def onInit(self):
+        xbmc.executebuiltin('Dialog.Close(busydialog)')
+        xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
         self.update_status_bar()
         self.load_items(fetch_tmdb('trending/all/week'), txt("TRENDING NOW / รายการยอดนิยมสัปดาห์นี้", "TRENDING NOW"))
 
@@ -540,10 +542,12 @@ def router(paramstring):
     action = params.get('action')
 
     if action is None:
+        xbmc.executebuiltin('Dialog.Close(busydialog)')
+        xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
         if not get_tmdb_key():
             ADDON.openSettings()
             return
-        ui = RyuHomeWindow('ryu_home.xml', ADDON_PATH, 'Default', '1080i')
+        ui = RyuHomeWindow('ryu_home.xml', ADDON_PATH, 'default', '1080i')
         ui.doModal()
         del ui
     elif action == 'my_cloud':
