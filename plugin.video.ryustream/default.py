@@ -30,7 +30,7 @@ AGENT_NAME = "RyuStreamKodi"
 TH_SHOP_CONTACT = "LINE ID: @631llmic"
 GLOBAL_DONATE_URL = "https://buymeacoffee.com"
 
-DEFAULT_TMDB_KEY = "4a4c2835f4cb50a1fdb8cf2d5b16daa7"       # <--- ใส่ TMDb API Key (v3) 32 หลักของคุณตรงนี้
+DEFAULT_TMDB_KEY = "4a4c2835f4cb50a1fdb8cf2d5b16daa7"
 TRAKT_CLIENT_ID = ""        # สมัครที่ trakt.tv/oauth/applications
 TRAKT_CLIENT_SECRET = ""
 SIMKL_CLIENT_ID = ""        # สมัครที่ ://simkl.com
@@ -121,12 +121,14 @@ def fetch_tmdb(endpoint, extra_params=None):
         params.update(extra_params)
 
     try:
-        res = SESSION.get(f"https://themoviedb.org{endpoint}", params=params, timeout=4).json()
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
+        res = SESSION.get(f"https://themoviedb.org{endpoint}", params=params, headers=headers, timeout=8).json()
         results = res.get('results', [])
         if results:
             set_cache(cache_key, results)
         return results
-    except Exception:
+    except Exception as e:
+        xbmc.log(f"RyuStream TMDb Error: {str(e)}", xbmc.LOGERROR)
         return []
 
 def fetch_tmdb_details(tmdb_id, media_type='movie'):
@@ -439,7 +441,7 @@ class RyuHomeWindow(xbmcgui.WindowXML):
             fanart = f"https://tmdb.org{item['backdrop_path']}" if item.get('backdrop_path') else ''
 
             li = xbmcgui.ListItem(label=title, offscreen=True)
-            li.setArt({'poster': poster, 'thumb': poster, 'fanart': fanart})
+            li.setArt({'poster': poster, 'thumb': poster, 'icon': poster, 'fanart': fanart})
             li.setProperty('orig_title', orig_title)
             li.setProperty('tmdb_id', str(item.get('id', '')))
             li.setProperty('media_type', m_type)
@@ -455,6 +457,8 @@ class RyuHomeWindow(xbmcgui.WindowXML):
         if list_items:
             panel.addItems(list_items)
             self.setFocusId(5000)
+        else:
+            self.getControl(103).setLabel('[COLOR red]No items loaded - Check Internet or TMDb Key[/COLOR]')
 
     def onClick(self, controlId):
         if controlId == 5000:
