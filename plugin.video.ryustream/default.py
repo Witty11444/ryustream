@@ -1,3 +1,8 @@
+import socket
+import urllib3.util.connection as urllib3_cn
+def allowed_gai_family():
+    return socket.AF_INET
+urllib3_cn.allowed_gai_family = allowed_gai_family
 import urllib3
 urllib3.disable_warnings()
 import os
@@ -122,16 +127,25 @@ def fetch_tmdb(endpoint, extra_params=None):
     if extra_params:
         params.update(extra_params)
 
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
-        res = SESSION.get(f"https://themoviedb.org{endpoint}", params=params, headers=headers, timeout=8, verify=False).json()
-        results = res.get('results', [])
-        if results:
-            set_cache(cache_key, results)
-        return results
-    except Exception as e:
-        xbmcgui.Dialog().notification("TMDb Error", str(e), xbmcgui.NOTIFICATION_ERROR, 8000)
-        return []
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
+    urls_to_try = [
+        f"https://themoviedb.org{endpoint}",
+        f"https://tmdb.org{endpoint}"
+    ]
+    last_err = ""
+    for target_url in urls_to_try:
+        try:
+            res = SESSION.get(target_url, params=params, headers=headers, timeout=8, verify=False).json()
+            results = res.get('results', [])
+            if results:
+                set_cache(cache_key, results)
+                return results
+        except Exception as e:
+            last_err = str(e)
+            continue
+    if last_err:
+        xbmcgui.Dialog().notification("TMDb Network", "Blocked by ISP DNS - Try 1.1.1.1 DNS", xbmcgui.NOTIFICATION_WARNING, 6000)
+    return []
 
 def fetch_tmdb_details(tmdb_id, media_type='movie'):
     tmdb_key = get_tmdb_key()
