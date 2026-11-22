@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
-    <category label="1. Debrid Accounts / บัญชีคลาวด์">
-        <setting label="[COLOR cyan]AllDebrid (Recommended / แนะนำ)[/COLOR]" type="lsep"/>
-        <setting id="enable_ad" type="bool" label="เปิดใช้งาน AllDebrid Cloud" default="true"/>
+    <category label="1. Debrid Accounts">
+        <setting label="[COLOR cyan]AllDebrid (Recommended)[/COLOR]" type="lsep"/>
+        <setting id="enable_ad" type="bool" label="Enable AllDebrid Cloud" default="true"/>
         <setting id="ad_apikey" type="text" label="AllDebrid API Key" default="" enable="false"/>
         <setting id="ad_username" type="text" label="AllDebrid User" default="-" enable="false"/>
-        <setting type="action" label=">> Authorize AllDebrid (PIN 4 หลัก) <<" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_alldebrid)"/>
+        <setting type="action" label=">> Authorize AllDebrid (PIN) <<" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_alldebrid)"/>
         <setting type="sep"/>
 
         <setting label="[COLOR gold]TorBox &amp; Real-Debrid (Optional)[/COLOR]" type="lsep"/>
-        <setting id="enable_tb" type="bool" label="เปิดใช้งาน TorBox Cloud" default="true"/>
+        <setting id="enable_tb" type="bool" label="Enable TorBox Cloud" default="true"/>
         <setting id="tb_apikey" type="text" label="TorBox API Key" default="" enable="eq(-1,true)"/>
-        <setting id="enable_rd" type="bool" label="เปิดใช้งาน Real-Debrid Cloud" default="true"/>
+        <setting id="enable_rd" type="bool" label="Enable Real-Debrid Cloud" default="true"/>
         <setting id="rd_apikey" type="text" label="Real-Debrid API Token" default="" enable="eq(-1,true)"/>
         <setting type="sep"/>
 
@@ -38,14 +38,14 @@
     </category>
 
     <category label="4. Subtitles (SubMaker)">
-        <setting label="[COLOR cyan]SubMaker ElfHosted (ซับไทย / AI Translate)[/COLOR]" type="lsep"/>
-        <setting id="submaker_url" type="text" label="SubMaker Manifest URL (วางลิงก์จาก ://elfhosted.com)" default=""/>
+        <setting label="[COLOR cyan]SubMaker ElfHosted Add-on[/COLOR]" type="lsep"/>
+        <setting id="submaker_url" type="text" label="SubMaker Manifest URL" default=""/>
     </category>
 
-    <category label="5. Maintenance / บำรุงรักษา">
-        <setting label="[COLOR cyan]จัดการหน่วยความจำแคชแยกส่วน (แบบเดียวกับ POV)[/COLOR]" type="lsep"/>
-        <setting type="action" label="1. Clear Metadata Cache (ล้างแคชปกหนัง &amp; เรื่องย่อ TMDb)" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=tmdb)"/>
-        <setting type="action" label="2. Clear Lists Cache (ล้างแคชรายการ Trakt / Simkl / MDBList)" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=lists)"/>
-        <setting type="action" label="3. Clear All Cache &amp; Optimize (ล้างแคชทั้งหมด + คืนพื้นที่)" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=all)"/>
+    <category label="5. Maintenance">
+        <setting label="[COLOR cyan]Manage Local Cache (SQLite)[/COLOR]" type="lsep"/>
+        <setting type="action" label="1. Clear Metadata Cache (TMDb)" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=tmdb)"/>
+        <setting type="action" label="2. Clear Lists Cache (Trakt / Simkl / MDBList)" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=lists)"/>
+        <setting type="action" label="3. Clear All Cache &amp; Optimize DB" action="RunPlugin(plugin://plugin.video.ryustream/?action=clear_cache&amp;type=all)"/>
     </category>
 </settings>

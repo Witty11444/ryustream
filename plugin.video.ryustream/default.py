@@ -78,7 +78,7 @@ def set_cache(key, data, ttl=14400):
 init_db()
 
 def is_thai():
-    return xbmc.getLanguage(xbmc.ISO_639_1).lower() == 'th'
+    return False
 
 def txt(th_text, en_text):
     return th_text if is_thai() else en_text
