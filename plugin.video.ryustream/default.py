@@ -100,7 +100,7 @@ def fetch_submaker_subs(imdb_id, media_type='movie', season='', episode=''):
     else:
         endpoint = f"{base_sub_url}/subtitles/movie/{imdb_id}.json"
     try:
-        res = SESSION.get(verify=False, endpoint, timeout=5).json()
+        res = SESSION.get(endpoint, timeout=5, verify=False).json()
         subs = res.get('subtitles', [])
         return [s.get('url') for s in subs if s.get('url')]
     except Exception:
@@ -124,7 +124,7 @@ def fetch_tmdb(endpoint, extra_params=None):
 
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
-        res = SESSION.get(verify=False, f"https://themoviedb.org{endpoint}", params=params, headers=headers, timeout=8).json()
+        res = SESSION.get(f"https://themoviedb.org{endpoint}", params=params, headers=headers, timeout=8, verify=False).json()
         results = res.get('results', [])
         if results:
             set_cache(cache_key, results)
@@ -144,7 +144,7 @@ def fetch_tmdb_details(tmdb_id, media_type='movie'):
         return cached
     try:
         params = {'api_key': tmdb_key, 'language': lang_code, 'append_to_response': 'credits,external_ids'}
-        res = SESSION.get(verify=False, f"https://themoviedb.org{media_type}/{tmdb_id}", params=params, timeout=4).json()
+        res = SESSION.get(f"https://themoviedb.org{media_type}/{tmdb_id}", params=params, timeout=4, verify=False).json()
         if res.get('id'):
             res['media_type'] = media_type
             set_cache(cache_key, res, ttl=86400)
@@ -184,7 +184,7 @@ def get_trakt_watchlist():
         return []
     headers = {'Authorization': f'Bearer {token}', 'trakt-api-version': '2', 'trakt-api-key': TRAKT_CLIENT_ID}
     try:
-        res = SESSION.get(verify=False, "https://trakt.tv", headers=headers, timeout=4.5).json()
+        res = SESSION.get("https://trakt.tv", headers=headers, timeout=4.5, verify=False).json()
         items = []
         for entry in itertools.islice(res, 20):
             m_type = 'movie' if entry.get('type') == 'movie' else 'tv'
@@ -202,7 +202,7 @@ def get_simkl_watchlist():
         return []
     headers = {'Authorization': f'Bearer {token}', 'simkl-api-key': SIMKL_CLIENT_ID}
     try:
-        res = SESSION.get(verify=False, "https://simkl.com", headers=headers, timeout=4.5).json()
+        res = SESSION.get("https://simkl.com", headers=headers, timeout=4.5, verify=False).json()
         items = []
         combined = res.get('movies', []) + res.get('shows', [])
         for entry in itertools.islice(combined, 20):
@@ -220,12 +220,12 @@ def get_mdblist_items():
     if not mdb_key:
         return []
     try:
-        lists = SESSION.get(verify=False, f"https://mdblist.com{mdb_key}", timeout=4).json()
+        lists = SESSION.get(f"https://mdblist.com{mdb_key}", timeout=4, verify=False).json()
         first_list = next(iter(lists), None) if isinstance(lists, list) else None
         if not first_list:
             return []
         first_list_id = first_list.get('id')
-        res = SESSION.get(verify=False, f"https://mdblist.com{first_list_id}/items/?apikey={mdb_key}", timeout=4.5).json()
+        res = SESSION.get(f"https://mdblist.com{first_list_id}/items/?apikey={mdb_key}", timeout=4.5, verify=False).json()
         items = []
         for entry in itertools.islice(res, 20):
             m_type = 'movie' if entry.get('mediatype') == 'movie' else 'tv'
@@ -237,7 +237,7 @@ def get_mdblist_items():
         return []
 def auth_alldebrid():
     try:
-        res = SESSION.get(verify=False, f"https://alldebrid.com{AGENT_NAME}", timeout=5).json()
+        res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}", timeout=5, verify=False).json()
         if res.get('status') != 'success':
             return
         pin, check_id, user_url = res['data']['pin'], res['data']['check'], res['data']['user_url']
@@ -248,10 +248,10 @@ def auth_alldebrid():
                 break
             pDialog.update(int((i / 60) * 100))
             time.sleep(3)
-            chk = SESSION.get(verify=False, f"https://alldebrid.com{AGENT_NAME}&check={check_id}&pin={pin}", timeout=4).json()
+            chk = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&check={check_id}&pin={pin}", timeout=4, verify=False).json()
             if chk.get('status') == 'success' and chk['data'].get('activated'):
                 apikey = chk['data']['apikey']
-                u_info = SESSION.get(verify=False, f"https://alldebrid.com{AGENT_NAME}&apikey={apikey}", timeout=4).json()
+                u_info = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={apikey}", timeout=4, verify=False).json()
                 ADDON.setSetting('ad_apikey', apikey)
                 ADDON.setSetting('ad_username', u_info['data']['user']['username'])
                 pDialog.close()
@@ -266,7 +266,7 @@ def auth_trakt():
         xbmcgui.Dialog().ok("Trakt", "กรุณาใส่ TRAKT_CLIENT_ID ในโค้ด default.py ก่อนใช้งาน")
         return
     try:
-        res = SESSION.post(verify=False, "https://trakt.tv", json={'client_id': TRAKT_CLIENT_ID}, timeout=5).json()
+        res = SESSION.post("https://trakt.tv", json={'client_id': TRAKT_CLIENT_ID}, timeout=5, verify=False).json()
         device_code, user_code, url = res['device_code'], res['user_code'], res['verification_url']
         pDialog = xbmcgui.DialogProgress()
         pDialog.create("Trakt Auth", f"1. เปิดเว็บ: [B]{url}[/B]\n2. กรอกรหัส: [COLOR lime][B]{user_code}[/B][/COLOR]")
@@ -275,7 +275,7 @@ def auth_trakt():
                 break
             pDialog.update(int((i / 60) * 100))
             time.sleep(5)
-            chk = SESSION.post(verify=False, "https://trakt.tv", json={'code': device_code, 'client_id': TRAKT_CLIENT_ID, 'client_secret': TRAKT_CLIENT_SECRET}, timeout=4)
+            chk = SESSION.post("https://trakt.tv", json={'code': device_code, 'client_id': TRAKT_CLIENT_ID, 'client_secret': TRAKT_CLIENT_SECRET}, timeout=4, verify=False)
             if chk.status_code == 200:
                 ADDON.setSetting('trakt_token', chk.json()['access_token'])
                 pDialog.close()
@@ -290,7 +290,7 @@ def auth_simkl():
         xbmcgui.Dialog().ok("Simkl", "กรุณาใส่ SIMKL_CLIENT_ID ในโค้ด default.py ก่อนใช้งาน")
         return
     try:
-        res = SESSION.get(verify=False, f"https://simkl.com{SIMKL_CLIENT_ID}", timeout=5).json()
+        res = SESSION.get(f"https://simkl.com{SIMKL_CLIENT_ID}", timeout=5, verify=False).json()
         user_code, url = res['user_code'], res['verification_url']
         pDialog = xbmcgui.DialogProgress()
         pDialog.create("Simkl Auth", f"1. เปิดเว็บ: [B]{url}[/B]\n2. กรอกรหัส: [COLOR cyan][B]{user_code}[/B][/COLOR]")
@@ -299,7 +299,7 @@ def auth_simkl():
                 break
             pDialog.update(int((i / 60) * 100))
             time.sleep(5)
-            chk = SESSION.get(verify=False, f"https://simkl.com{user_code}?client_id={SIMKL_CLIENT_ID}", timeout=4).json()
+            chk = SESSION.get(f"https://simkl.com{user_code}?client_id={SIMKL_CLIENT_ID}", timeout=4, verify=False).json()
             if chk.get('result') == 'OK':
                 ADDON.setSetting('simkl_token', chk['access_token'])
                 pDialog.close()
@@ -318,7 +318,7 @@ def list_all_clouds(filter_keyword=None, imdb_id='', media_type='movie'):
 
     if ad_key:
         try:
-            res = SESSION.get(verify=False, f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}", timeout=4).json()
+            res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}", timeout=4, verify=False).json()
             for item in res.get('data', {}).get('links', []):
                 fname = item.get('filename', '')
                 if kw and kw not in fname.lower():
@@ -331,7 +331,7 @@ def list_all_clouds(filter_keyword=None, imdb_id='', media_type='movie'):
 
     if tb_key:
         try:
-            res = SESSION.get(verify=False, "https://torbox.app", headers={'Authorization': f'Bearer {tb_key}'}, timeout=4).json()
+            res = SESSION.get("https://torbox.app", headers={'Authorization': f'Bearer {tb_key}'}, timeout=4, verify=False).json()
             for item in res.get('data', []):
                 for f in item.get('files', []):
                     fname = f.get('short_name', '')
@@ -345,7 +345,7 @@ def list_all_clouds(filter_keyword=None, imdb_id='', media_type='movie'):
 
     if rd_key:
         try:
-            res = SESSION.get(verify=False, "https://real-debrid.com", headers={'Authorization': f'Bearer {rd_key}'}, timeout=4).json()
+            res = SESSION.get("https://real-debrid.com", headers={'Authorization': f'Bearer {rd_key}'}, timeout=4, verify=False).json()
             for item in itertools.islice(res, 30):
                 fname = item.get('filename', '')
                 if kw and kw not in fname.lower():
@@ -373,11 +373,11 @@ def play_video(params):
     try:
         if provider == 'ad':
             ad_key = ADDON.getSetting('ad_apikey')
-            res = SESSION.get(verify=False, f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}&link={urllib.parse.quote(params.get('url', ''))}", timeout=4.5).json()
+            res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}&link={urllib.parse.quote(params.get('url', ''))}", timeout=4.5, verify=False).json()
             stream_url = res['data']['link']
         elif provider == 'tb':
             tb_key = ADDON.getSetting('tb_apikey')
-            res = SESSION.get(verify=False, f"https://torbox.app{tb_key}&torrent_id={params.get('tid')}&file_id={params.get('fid')}", timeout=4.5).json()
+            res = SESSION.get(f"https://torbox.app{tb_key}&torrent_id={params.get('tid')}&file_id={params.get('fid')}", timeout=4.5, verify=False).json()
             stream_url = res['data']
         elif provider == 'rd':
             stream_url = params.get('url', '')

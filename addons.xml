@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addons>
-    <addon id="plugin.video.ryustream" name="RyuStream" version="2.1.6" provider-name="RyuStream Official">
+    <addon id="plugin.video.ryustream" name="RyuStream" version="2.1.7" provider-name="RyuStream Official">
         <requires>
             <import addon="xbmc.python" version="3.0.1"/>
             <import addon="script.module.requests" version="2.25.1"/>
