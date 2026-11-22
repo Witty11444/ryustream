@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.ryustream" name="RyuStream" version="2.1.0" provider-name="RyuStream Official">
+    <requires>
+        <import addon="xbmc.python" version="3.0.1"/>
+        <import addon="script.module.requests" version="2.25.1"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary lang="en">RyuStream - All-In-One Debrid, Trakt, Simkl &amp; MDBList Hub</summary>
+        <summary lang="th">RyuStream - ศูนย์รวม AllDebrid, TorBox, Real-Debrid, Trakt, Simkl และ MDBList ความเร็วสูง</summary>
+        <description lang="en">Ultra-fast Kodi media hub supporting AllDebrid, TorBox, Real-Debrid, Trakt, Simkl, and MDBList with custom TV UI.</description>
+        <description lang="th">เครื่องมือจัดการคลาวด์และรายการโปรดครบวงจร รองรับ AllDebrid, TorBox, Real-Debrid, Trakt, Simkl และ MDBList ปรับจูนความเร็วเพื่อ Android TV</description>
+        <platform>all</platform>
+        <license>GPL-3.0-only</license>
+        <assets>
+            <icon>icon.png</icon>
+            <fanart>fanart.jpg</fanart>
+        </assets>
+    </extension>
+</addon>
