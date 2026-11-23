@@ -1,10 +1,6 @@
-import socket
-import urllib3.util.connection as urllib3_cn
-def allowed_gai_family():
-    return socket.AF_INET
-urllib3_cn.allowed_gai_family = allowed_gai_family
-import urllib3
-urllib3.disable_warnings()
+import urllib.request
+import ssl
+
 import os
 import sys
 import json
@@ -112,24 +108,46 @@ def fetch_submaker_subs(imdb_id, media_type='movie', season='', episode=''):
         return []
 
 def fetch_tmdb(endpoint, extra_params=None):
-    raw_key = f"cm_v224_{endpoint}_{json.dumps(extra_params or {})}"
+    raw_key = f"cm_v225_{endpoint}_{json.dumps(extra_params or {})}"
     cache_key = hashlib.md5(raw_key.encode()).hexdigest()
     cached = get_cache(cache_key)
     if cached is not None:
         return cached
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
+    ctx = ssl._create_unverified_context()
+    headers = {'User-Agent': 'Kodi/21.0 (Windows NT 10.0; Win64; x64)'}
     results = []
 
     try:
         if endpoint == 'search/multi' and extra_params and extra_params.get('query'):
             q = urllib.parse.quote(extra_params['query'])
             for m_type in ['movie', 'series']:
-                r = requests.get(f"https://strem.io{m_type}/top/search={q}.json", headers=headers, timeout=6).json()
-                for item in r.get('metas', [])[:10]:
+                url = f"https://strem.io{m_type}/top/search={q}.json"
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    for item in data.get('metas', [])[:10]:
+                        results.append({
+                            'id': item.get('id', ''),
+                            'media_type': 'tv' if m_type == 'series' else 'movie',
+                            'title': item.get('name', ''),
+                            'original_title': item.get('name', ''),
+                            'release_date': str(item.get('releaseInfo', ''))[:4],
+                            'vote_average': float(item.get('imdbRating') or 7.5),
+                            'overview': item.get('description') or 'No overview available.',
+                            'direct_poster': item.get('poster', ''),
+                            'direct_fanart': item.get('background') or item.get('poster', '')
+                        })
+        else:
+            cat_type = 'series' if 'tv' in endpoint else 'movie'
+            url = f"https://strem.io{cat_type}/top.json"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                for item in data.get('metas', [])[:25]:
                     results.append({
                         'id': item.get('id', ''),
-                        'media_type': 'tv' if m_type == 'series' else 'movie',
+                        'media_type': 'tv' if cat_type == 'series' else 'movie',
                         'title': item.get('name', ''),
                         'original_title': item.get('name', ''),
                         'release_date': str(item.get('releaseInfo', ''))[:4],
@@ -138,25 +156,10 @@ def fetch_tmdb(endpoint, extra_params=None):
                         'direct_poster': item.get('poster', ''),
                         'direct_fanart': item.get('background') or item.get('poster', '')
                     })
-        else:
-            cat_type = 'series' if 'tv' in endpoint else 'movie'
-            r = requests.get(f"https://strem.io{cat_type}/top.json", headers=headers, timeout=6).json()
-            for item in r.get('metas', [])[:25]:
-                results.append({
-                    'id': item.get('id', ''),
-                    'media_type': 'tv' if cat_type == 'series' else 'movie',
-                    'title': item.get('name', ''),
-                    'original_title': item.get('name', ''),
-                    'release_date': str(item.get('releaseInfo', ''))[:4],
-                    'vote_average': float(item.get('imdbRating') or 7.5),
-                    'overview': item.get('description') or 'No overview available.',
-                    'direct_poster': item.get('poster', ''),
-                    'direct_fanart': item.get('background') or item.get('poster', '')
-                })
         if results:
             set_cache(cache_key, results)
     except Exception as e:
-        xbmcgui.Dialog().notification("Catalog Error", str(e), xbmcgui.NOTIFICATION_ERROR, 5000)
+        xbmcgui.Dialog().notification("Fetch Error", str(e), xbmcgui.NOTIFICATION_ERROR, 6000)
 
     return results
 
