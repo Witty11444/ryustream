@@ -116,7 +116,7 @@ def fetch_tmdb(endpoint, extra_params=None):
     if not tmdb_key:
         return []
     lang_code = 'th-TH' if is_thai() else 'en-US'
-    raw_key = f"tmdb_v221_{endpoint}_{lang_code}_{json.dumps(extra_params or {})}"
+    raw_key = f"tmdb_v222_{endpoint}_{lang_code}_{json.dumps(extra_params or {})}"
     cache_key = hashlib.md5(raw_key.encode()).hexdigest()
 
     cached = get_cache(cache_key)
@@ -128,9 +128,11 @@ def fetch_tmdb(endpoint, extra_params=None):
         params.update(extra_params)
 
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
-        res = SESSION.get(f"https://workers.dev/3/{endpoint}", params=params, headers=headers, timeout=10, verify=False).json()
-        results = res.get('results', [])
+        r = requests.get(f"https://workers.dev/3/{endpoint}", params=params, timeout=10, verify=False)
+        if r.status_code != 200:
+            xbmcgui.Dialog().notification("TMDb Status", f"HTTP {r.status_code}: {r.text[:60]}", xbmcgui.NOTIFICATION_ERROR, 6000)
+            return []
+        results = r.json().get('results', [])
         if results:
             set_cache(cache_key, results)
         return results
