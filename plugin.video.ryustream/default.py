@@ -129,8 +129,8 @@ def fetch_tmdb(endpoint, extra_params=None):
 
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
     urls_to_try = [
-        f"https://themoviedb.org{endpoint}",
-        f"https://tmdb.org{endpoint}"
+        f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{endpoint}",
+        f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{endpoint}"
     ]
     last_err = ""
     for target_url in urls_to_try:
@@ -158,7 +158,7 @@ def fetch_tmdb_details(tmdb_id, media_type='movie'):
         return cached
     try:
         params = {'api_key': tmdb_key, 'language': lang_code, 'append_to_response': 'credits,external_ids'}
-        res = SESSION.get(f"https://themoviedb.org{media_type}/{tmdb_id}", params=params, timeout=4, verify=False).json()
+        res = SESSION.get(f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{media_type}/{tmdb_id}", params=params, timeout=4, verify=False).json()
         if res.get('id'):
             res['media_type'] = media_type
             set_cache(cache_key, res, ttl=86400)
@@ -453,8 +453,8 @@ class RyuHomeWindow(xbmcgui.WindowXML):
             overview = item.get('overview') or no_plot
             rating = f"{float(item.get('vote_average') or 0):.1f}"
 
-            poster = f"https://tmdb.org{item['poster_path']}" if item.get('poster_path') else ''
-            fanart = f"https://tmdb.org{item['backdrop_path']}" if item.get('backdrop_path') else ''
+            poster = f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{item['poster_path']}" if item.get('poster_path') else ''
+            fanart = f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{item['backdrop_path']}" if item.get('backdrop_path') else ''
 
             li = xbmcgui.ListItem(label=title, offscreen=True)
             li.setArt({'poster': poster, 'thumb': poster, 'icon': poster, 'fanart': fanart})
