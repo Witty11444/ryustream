@@ -116,7 +116,7 @@ def fetch_tmdb(endpoint, extra_params=None):
     if not tmdb_key:
         return []
     lang_code = 'th-TH' if is_thai() else 'en-US'
-    raw_key = f"tmdb_{endpoint}_{lang_code}_{json.dumps(extra_params or {})}"
+    raw_key = f"tmdb_v221_{endpoint}_{lang_code}_{json.dumps(extra_params or {})}"
     cache_key = hashlib.md5(raw_key.encode()).hexdigest()
 
     cached = get_cache(cache_key)
@@ -127,25 +127,16 @@ def fetch_tmdb(endpoint, extra_params=None):
     if extra_params:
         params.update(extra_params)
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
-    urls_to_try = [
-        f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{endpoint}",
-        f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{endpoint}"
-    ]
-    last_err = ""
-    for target_url in urls_to_try:
-        try:
-            res = SESSION.get(target_url, params=params, headers=headers, timeout=8, verify=False).json()
-            results = res.get('results', [])
-            if results:
-                set_cache(cache_key, results)
-                return results
-        except Exception as e:
-            last_err = str(e)
-            continue
-    if last_err:
-        xbmcgui.Dialog().notification("TMDb Network", "Blocked by ISP DNS - Try 1.1.1.1 DNS", xbmcgui.NOTIFICATION_WARNING, 6000)
-    return []
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Kodi/21.0'}
+        res = SESSION.get(f"https://workers.dev/3/{endpoint}", params=params, headers=headers, timeout=10, verify=False).json()
+        results = res.get('results', [])
+        if results:
+            set_cache(cache_key, results)
+        return results
+    except Exception as e:
+        xbmcgui.Dialog().notification("Worker Error", str(e), xbmcgui.NOTIFICATION_ERROR, 6000)
+        return []
 
 def fetch_tmdb_details(tmdb_id, media_type='movie'):
     tmdb_key = get_tmdb_key()
