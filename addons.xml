@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addons>
-<addon id="repository.ryustream" name="RyuStream Repository" version="1.0.1" provider-name="RyuStream">
+<addon id="repository.ryustream" name="RyuStream Repository" version="1.0.2" provider-name="RyuStream">
+  <requires>
+    <import addon="xbmc.addon" version="12.0.0"/>
+  </requires>
   <extension point="xbmc.addon.repository" name="RyuStream Repository">
     <dir>
       <info compressed="false">https://witty11444.github.io/ryustream/addons.xml</info>
