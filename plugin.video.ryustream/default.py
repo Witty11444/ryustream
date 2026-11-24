@@ -1,603 +1,628 @@
-import urllib.request
-import ssl
-
-import os
 import sys
+import os
 import json
 import time
-import hashlib
 import sqlite3
+import hashlib
 import urllib.parse
-import itertools
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import xbmc
 import xbmcgui
-import xbmcplugin
 import xbmcaddon
 import xbmcvfs
 
 ADDON = xbmcaddon.Addon()
-ADDON_PATH = ADDON.getAddonInfo('path')
+ADDON_PATH = xbmcvfs.translatePath(ADDON.getAddonInfo('path'))
+PROFILE_PATH = xbmcvfs.translatePath(ADDON.getAddonInfo('profile'))
+MEDIA_PATH = os.path.join(ADDON_PATH, 'resources', 'media')
+if not xbmcvfs.exists(PROFILE_PATH):
+    xbmcvfs.mkdirs(PROFILE_PATH)
 
-# ดึงค่า sys.argv แบบปลอดภัย 100% ไม่พึ่งพาตัวเลขในวงเล็บ
-_argv_iter = iter(sys.argv)
-BASE_URL = next(_argv_iter, '')
-HANDLE = int(next(_argv_iter, '-1'))
-PARAM_STR = next(_argv_iter, '').lstrip('?')
-AGENT_NAME = "RyuStreamKodi"
-
-# =====================================================================
-# ตั้งค่าข้อมูลร้านค้า & API Keys เริ่มต้นของคุณ
-# =====================================================================
-TH_SHOP_CONTACT = "LINE ID: @631llmic"
-GLOBAL_DONATE_URL = "https://buymeacoffee.com"
-
+DB_PATH = os.path.join(PROFILE_PATH, 'ryustream_cache.db')
 DEFAULT_TMDB_KEY = "4a4c2835f4cb50a1fdb8cf2d5b16daa7"
-TRAKT_CLIENT_ID = ""        # สมัครที่ trakt.tv/oauth/applications
-TRAKT_CLIENT_SECRET = ""
-SIMKL_CLIENT_ID = ""        # สมัครที่ ://simkl.com
-# =====================================================================
+RD_CLIENT_ID = "X245A4XAIBGVM"
+PM_CLIENT_ID = "888228107"
+TRAKT_CLIENT_ID = "N2uItt-lTlCfWS_6U2j7JlH64nFMzP4AN_zvB1i7bX4"
+SIMKL_CLIENT_ID = "39e8640b6f1a60aaf60f3f3313475e830517badab8048a4e52ff2d10deb2b9b0"
 
 SESSION = requests.Session()
-ADAPTER = HTTPAdapter(pool_connections=15, pool_maxsize=15, max_retries=1)
-SESSION.mount('https://', ADAPTER)
-SESSION.mount('http://', ADAPTER)
+_retries = Retry(total=3, connect=3, read=3, status=3, status_forcelist=(429, 500, 502, 503, 504), backoff_factor=0.3)
+SESSION.mount('https://', HTTPAdapter(pool_maxsize=100, max_retries=_retries))
 
-PROFILE_DIR = xbmcvfs.translatePath(ADDON.getAddonInfo('profile'))
-if not os.path.exists(PROFILE_DIR):
-    os.makedirs(PROFILE_DIR)
-CACHE_DB = os.path.join(PROFILE_DIR, 'ryu_v22_cache.db')
+def get_tmdb_key():
+    user_key = ADDON.getSetting('tmdb_apikey').strip()
+    return user_key if user_key else DEFAULT_TMDB_KEY
 
 def init_db():
-    conn = sqlite3.connect(CACHE_DB)
-    conn.execute('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, data TEXT, expires INTEGER)')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, data TEXT, expires INTEGER)')
     conn.commit()
     conn.close()
 
 def get_cache(key):
-    try:
-        conn = sqlite3.connect(CACHE_DB)
-        cur = conn.execute('SELECT data, expires FROM cache WHERE key = ?', (key,))
-        row = cur.fetchone()
-        conn.close()
-        if row:
-            data_str, expires_at = row
-            if expires_at > time.time():
-                return json.loads(data_str)
-    except Exception:
-        pass
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT data, expires FROM cache WHERE key = ?', (key,))
+    row = c.fetchone()
+    conn.close()
+    if row and row[1] > int(time.time()):
+        return json.loads(row[0])
     return None
 
-def set_cache(key, data, ttl=14400):
-    try:
-        conn = sqlite3.connect(CACHE_DB)
-        conn.execute('REPLACE INTO cache (key, data, expires) VALUES (?, ?, ?)', (key, json.dumps(data), int(time.time() + ttl)))
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
-
-init_db()
-
-def is_thai():
-    return False
-
-def txt(th_text, en_text):
-    return th_text if is_thai() else en_text
-
-def get_tmdb_key():
-    return ADDON.getSetting('tmdb_apikey').strip() or DEFAULT_TMDB_KEY
-
-def build_url(query):
-    return BASE_URL + '?' + urllib.parse.urlencode(query)
-def fetch_submaker_subs(imdb_id, media_type='movie', season='', episode=''):
-    sub_url = ADDON.getSetting('submaker_url').strip()
-    if not sub_url or not imdb_id:
-        return []
-    base_sub_url = sub_url.replace('/manifest.json', '').rstrip('/')
-    if media_type == 'tv' and season and episode:
-        endpoint = f"{base_sub_url}/subtitles/series/{imdb_id}:{season}:{episode}.json"
-    else:
-        endpoint = f"{base_sub_url}/subtitles/movie/{imdb_id}.json"
-    try:
-        res = SESSION.get(endpoint, timeout=5, verify=False).json()
-        subs = res.get('subtitles', [])
-        return [s.get('url') for s in subs if s.get('url')]
-    except Exception:
-        return []
+def set_cache(key, data, ttl=86400):
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('REPLACE INTO cache (key, data, expires) VALUES (?, ?, ?)', (key, json.dumps(data), int(time.time()) + ttl))
+    conn.commit()
+    conn.close()
 
 def fetch_tmdb(endpoint, extra_params=None):
-    raw_key = f"cm_v225_{endpoint}_{json.dumps(extra_params or {})}"
+    tmdb_key = get_tmdb_key()
+    if not tmdb_key:
+        return list()
+    raw_key = f"tmdb_v300_{endpoint}_{json.dumps(extra_params or dict())}"
     cache_key = hashlib.md5(raw_key.encode()).hexdigest()
     cached = get_cache(cache_key)
     if cached is not None:
         return cached
 
-    ctx = ssl._create_unverified_context()
-    headers = {'User-Agent': 'Kodi/21.0 (Windows NT 10.0; Win64; x64)'}
-    results = []
+    params = {'api_key': tmdb_key, 'language': 'en-US'}
+    if extra_params:
+        params.update(extra_params)
 
     try:
-        if endpoint == 'search/multi' and extra_params and extra_params.get('query'):
-            q = urllib.parse.quote(extra_params['query'])
-            for m_type in ['movie', 'series']:
-                url = f"https://strem.io{m_type}/top/search={q}.json"
-                req = urllib.request.Request(url, headers=headers)
-                with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    for item in data.get('metas', [])[:10]:
-                        results.append({
-                            'id': item.get('id', ''),
-                            'media_type': 'tv' if m_type == 'series' else 'movie',
-                            'title': item.get('name', ''),
-                            'original_title': item.get('name', ''),
-                            'release_date': str(item.get('releaseInfo', ''))[:4],
-                            'vote_average': float(item.get('imdbRating') or 7.5),
-                            'overview': item.get('description') or 'No overview available.',
-                            'direct_poster': item.get('poster', ''),
-                            'direct_fanart': item.get('background') or item.get('poster', '')
-                        })
-        else:
-            cat_type = 'series' if 'tv' in endpoint else 'movie'
-            url = f"https://strem.io{cat_type}/top.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                for item in data.get('metas', [])[:25]:
-                    results.append({
-                        'id': item.get('id', ''),
-                        'media_type': 'tv' if cat_type == 'series' else 'movie',
-                        'title': item.get('name', ''),
-                        'original_title': item.get('name', ''),
-                        'release_date': str(item.get('releaseInfo', ''))[:4],
-                        'vote_average': float(item.get('imdbRating') or 7.5),
-                        'overview': item.get('description') or 'No overview available.',
-                        'direct_poster': item.get('poster', ''),
-                        'direct_fanart': item.get('background') or item.get('poster', '')
-                    })
-        if results:
-            set_cache(cache_key, results)
-    except Exception as e:
-        xbmcgui.Dialog().notification("Fetch Error", str(e), xbmcgui.NOTIFICATION_ERROR, 6000)
+        url = "https://" + "api." + "themoviedb.org/3/" + endpoint
+        res = SESSION.get(url, params=params, timeout=10)
+        if res.ok:
+            results = res.json().get('results', list())
+            if results:
+                set_cache(cache_key, results)
+            return results
+        return list()
+    except Exception:
+        return list()
 
-    return results
-
-def fetch_tmdb_details(tmdb_id, media_type='movie'):
+def get_imdb_id(tmdb_id, media_type='movie'):
     tmdb_key = get_tmdb_key()
-    if not tmdb_key or not tmdb_id:
-        return None
-    lang_code = 'th-TH' if is_thai() else 'en-US'
-    cache_key = f"detail_{media_type}_{tmdb_id}_{lang_code}"
-    cached = get_cache(cache_key)
-    if cached:
-        return cached
+    url = f"https://" + f"api.themoviedb.org/3/{media_type}/{tmdb_id}/external_ids"
     try:
-        params = {'api_key': tmdb_key, 'language': lang_code, 'append_to_response': 'credits,external_ids'}
-        res = SESSION.get(f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{media_type}/{tmdb_id}", params=params, timeout=4, verify=False).json()
-        if res.get('id'):
-            res['media_type'] = media_type
-            set_cache(cache_key, res, ttl=86400)
-            return res
+        res = SESSION.get(url, params={'api_key': tmdb_key}, timeout=8).json()
+        return res.get('imdb_id', '')
     except Exception:
-        pass
-    return None
+        return ''
+def resolve_debrid_magnet(magnet_uri):
+    ad_key = ADDON.getSetting('ad_apikey').strip()
+    rd_key = ADDON.getSetting('rd_apikey').strip()
+    pm_key = ADDON.getSetting('pm_apikey').strip()
+    tb_key = ADDON.getSetting('tb_apikey').strip()
 
-def show_tmdb_extra_info(tmdb_id, media_type):
-    detail = fetch_tmdb_details(tmdb_id, media_type)
-    if not detail:
-        xbmcgui.Dialog().ok("TMDb Info", txt("ไม่พบข้อมูลเพิ่มเติม", "Details not available."))
-        return
-
-    title = detail.get('title') or detail.get('name') or ''
-    orig_title = detail.get('original_title') or detail.get('original_name') or ''
-    genres = ", ".join([g['name'] for g in detail.get('genres', [])]) or "-"
-    ep_run = detail.get('episode_run_time') or []
-    runtime = detail.get('runtime') or next(iter(ep_run), '-')
-    cast_raw = detail.get('credits', {}).get('cast', [])
-    cast_list = [c['name'] for c in itertools.islice(cast_raw, 6)]
-    cast_str = ", ".join(cast_list) if cast_list else "-"
-    overview = detail.get('overview') or txt("ไม่มีเรื่องย่อภาษาไทย", "No overview.")
-
-    info_text = (
-        f"[B]{title}[/B] ({orig_title})\n"
-        f"[COLOR cyan]หมวดหมู่:[/COLOR] {genres}\n"
-        f"[COLOR cyan]ความยาว:[/COLOR] {runtime} นาที\n"
-        f"[COLOR gold]นักแสดงนำ:[/COLOR] {cast_str}\n\n"
-        f"{overview}"
-    )
-    xbmcgui.Dialog().textviewer(txt("ข้อมูลภาพยนตร์ / ซีรีส์ (TMDb)", "TMDb Details & Cast"), info_text)
-
-def get_trakt_watchlist():
-    token = ADDON.getSetting('trakt_token')
-    if not token or not TRAKT_CLIENT_ID:
-        return []
-    headers = {'Authorization': f'Bearer {token}', 'trakt-api-version': '2', 'trakt-api-key': TRAKT_CLIENT_ID}
-    try:
-        res = SESSION.get("https://trakt.tv", headers=headers, timeout=4.5, verify=False).json()
-        items = []
-        for entry in itertools.islice(res, 20):
-            m_type = 'movie' if entry.get('type') == 'movie' else 'tv'
-            obj = entry.get('movie') or entry.get('show') or {}
-            detail = fetch_tmdb_details(obj.get('ids', {}).get('tmdb'), m_type)
-            if detail:
-                items.append(detail)
-        return items
-    except Exception:
-        return []
-
-def get_simkl_watchlist():
-    token = ADDON.getSetting('simkl_token')
-    if not token or not SIMKL_CLIENT_ID:
-        return []
-    headers = {'Authorization': f'Bearer {token}', 'simkl-api-key': SIMKL_CLIENT_ID}
-    try:
-        res = SESSION.get("https://simkl.com", headers=headers, timeout=4.5, verify=False).json()
-        items = []
-        combined = res.get('movies', []) + res.get('shows', [])
-        for entry in itertools.islice(combined, 20):
-            m_type = 'movie' if 'movie' in entry else 'tv'
-            obj = entry.get('movie') or entry.get('show') or {}
-            detail = fetch_tmdb_details(obj.get('ids', {}).get('tmdb'), m_type)
-            if detail:
-                items.append(detail)
-        return items
-    except Exception:
-        return []
-
-def get_mdblist_items():
-    mdb_key = ADDON.getSetting('mdblist_apikey').strip()
-    if not mdb_key:
-        return []
-    try:
-        lists = SESSION.get(f"https://mdblist.com{mdb_key}", timeout=4, verify=False).json()
-        first_list = next(iter(lists), None) if isinstance(lists, list) else None
-        if not first_list:
-            return []
-        first_list_id = first_list.get('id')
-        res = SESSION.get(f"https://mdblist.com{first_list_id}/items/?apikey={mdb_key}", timeout=4.5, verify=False).json()
-        items = []
-        for entry in itertools.islice(res, 20):
-            m_type = 'movie' if entry.get('mediatype') == 'movie' else 'tv'
-            detail = fetch_tmdb_details(entry.get('id'), m_type)
-            if detail:
-                items.append(detail)
-        return items
-    except Exception:
-        return []
-def auth_alldebrid():
-    try:
-        res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}", timeout=5, verify=False).json()
-        if res.get('status') != 'success':
-            return
-        pin, check_id, user_url = res['data']['pin'], res['data']['check'], res['data']['user_url']
-        pDialog = xbmcgui.DialogProgress()
-        pDialog.create("AllDebrid Auth", f"1. เปิดเว็บ: [B]{user_url}[/B]\n2. กรอก PIN: [COLOR cyan][B]{pin}[/B][/COLOR]")
-        for i in range(60):
-            if pDialog.iscanceled():
-                break
-            pDialog.update(int((i / 60) * 100))
-            time.sleep(3)
-            chk = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&check={check_id}&pin={pin}", timeout=4, verify=False).json()
-            if chk.get('status') == 'success' and chk['data'].get('activated'):
-                apikey = chk['data']['apikey']
-                u_info = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={apikey}", timeout=4, verify=False).json()
-                ADDON.setSetting('ad_apikey', apikey)
-                ADDON.setSetting('ad_username', u_info['data']['user']['username'])
-                pDialog.close()
-                xbmcgui.Dialog().ok("RyuStream", txt("เชื่อมต่อ AllDebrid สำเร็จ!", "AllDebrid Connected!"))
-                return
-        pDialog.close()
-    except Exception as e:
-        xbmcgui.Dialog().ok("Error", str(e))
-
-def auth_trakt():
-    if not TRAKT_CLIENT_ID:
-        xbmcgui.Dialog().ok("Trakt", "กรุณาใส่ TRAKT_CLIENT_ID ในโค้ด default.py ก่อนใช้งาน")
-        return
-    try:
-        res = SESSION.post("https://trakt.tv", json={'client_id': TRAKT_CLIENT_ID}, timeout=5, verify=False).json()
-        device_code, user_code, url = res['device_code'], res['user_code'], res['verification_url']
-        pDialog = xbmcgui.DialogProgress()
-        pDialog.create("Trakt Auth", f"1. เปิดเว็บ: [B]{url}[/B]\n2. กรอกรหัส: [COLOR lime][B]{user_code}[/B][/COLOR]")
-        for i in range(60):
-            if pDialog.iscanceled():
-                break
-            pDialog.update(int((i / 60) * 100))
-            time.sleep(5)
-            chk = SESSION.post("https://trakt.tv", json={'code': device_code, 'client_id': TRAKT_CLIENT_ID, 'client_secret': TRAKT_CLIENT_SECRET}, timeout=4, verify=False)
-            if chk.status_code == 200:
-                ADDON.setSetting('trakt_token', chk.json()['access_token'])
-                pDialog.close()
-                xbmcgui.Dialog().ok("Trakt", txt("เชื่อมต่อ Trakt สำเร็จ!", "Trakt Connected!"))
-                return
-        pDialog.close()
-    except Exception as e:
-        xbmcgui.Dialog().ok("Error", str(e))
-
-def auth_simkl():
-    if not SIMKL_CLIENT_ID:
-        xbmcgui.Dialog().ok("Simkl", "กรุณาใส่ SIMKL_CLIENT_ID ในโค้ด default.py ก่อนใช้งาน")
-        return
-    try:
-        res = SESSION.get(f"https://simkl.com{SIMKL_CLIENT_ID}", timeout=5, verify=False).json()
-        user_code, url = res['user_code'], res['verification_url']
-        pDialog = xbmcgui.DialogProgress()
-        pDialog.create("Simkl Auth", f"1. เปิดเว็บ: [B]{url}[/B]\n2. กรอกรหัส: [COLOR cyan][B]{user_code}[/B][/COLOR]")
-        for i in range(60):
-            if pDialog.iscanceled():
-                break
-            pDialog.update(int((i / 60) * 100))
-            time.sleep(5)
-            chk = SESSION.get(f"https://simkl.com{user_code}?client_id={SIMKL_CLIENT_ID}", timeout=4, verify=False).json()
-            if chk.get('result') == 'OK':
-                ADDON.setSetting('simkl_token', chk['access_token'])
-                pDialog.close()
-                xbmcgui.Dialog().ok("Simkl", txt("เชื่อมต่อ Simkl สำเร็จ!", "Simkl Connected!"))
-                return
-        pDialog.close()
-    except Exception as e:
-        xbmcgui.Dialog().ok("Error", str(e))
-
-def list_all_clouds(filter_keyword=None, imdb_id='', media_type='movie'):
-    dir_items = []
-    ad_key = ADDON.getSetting('ad_apikey').strip() if ADDON.getSettingBool('enable_ad') else ''
-    tb_key = ADDON.getSetting('tb_apikey').strip() if ADDON.getSettingBool('enable_tb') else ''
-    rd_key = ADDON.getSetting('rd_apikey').strip() if ADDON.getSettingBool('enable_rd') else ''
-    kw = next(iter(filter_keyword.lower().split(':')), '').strip() if filter_keyword else None
-
+    # 1. AllDebrid Resolver (URL เต็มครบถ้วน)
     if ad_key:
         try:
-            res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}", timeout=4, verify=False).json()
-            for item in res.get('data', {}).get('links', []):
-                fname = item.get('filename', '')
-                if kw and kw not in fname.lower():
-                    continue
-                li = xbmcgui.ListItem(label=f"[COLOR cyan][AllDebrid][/COLOR] {fname}", offscreen=True)
-                li.setProperty('IsPlayable', 'true')
-                dir_items.append((build_url({'action': 'play', 'provider': 'ad', 'url': item.get('link'), 'imdb_id': imdb_id, 'm_type': media_type}), li, False))
-        except Exception:
-            pass
+            u1 = "https://" + "api." + "alldebrid.com" + "/v4/magnet/upload"
+            r1 = SESSION.get(u1, params={'agent': 'RyuStream', 'apikey': ad_key, 'magnets[]': magnet_uri}, timeout=12).json()
+            mags = r1.get('data', {}).get('magnets', list())
+            if mags:
+                mag_id = mags[0].get('id')
+                u2 = "https://" + "api." + "alldebrid.com" + "/v4/magnet/status"
+                r2 = SESSION.get(u2, params={'agent': 'RyuStream', 'apikey': ad_key, 'id': mag_id}, timeout=12).json()
+                links = r2.get('data', {}).get('magnets', {}).get('links', list())
+                if links:
+                    best_link = max(links, key=lambda x: x.get('size', 0)).get('link')
+                    u3 = "https://" + "api." + "alldebrid.com" + "/v4/link/unlock"
+                    r3 = SESSION.get(u3, params={'agent': 'RyuStream', 'apikey': ad_key, 'link': best_link}, timeout=12).json()
+                    stream_url = r3.get('data', {}).get('link')
+                    if stream_url:
+                        return stream_url
+        except Exception as e:
+            xbmcgui.Dialog().notification('AllDebrid Error', str(e)[:60], xbmcgui.NOTIFICATION_ERROR, 4000)
 
-    if tb_key:
-        try:
-            res = SESSION.get("https://torbox.app", headers={'Authorization': f'Bearer {tb_key}'}, timeout=4, verify=False).json()
-            for item in res.get('data', []):
-                for f in item.get('files', []):
-                    fname = f.get('short_name', '')
-                    if kw and kw not in fname.lower():
-                        continue
-                    li = xbmcgui.ListItem(label=f"[COLOR lime][TorBox][/COLOR] {fname}", offscreen=True)
-                    li.setProperty('IsPlayable', 'true')
-                    dir_items.append((build_url({'action': 'play', 'provider': 'tb', 'tid': item.get('id'), 'fid': f.get('id'), 'imdb_id': imdb_id, 'm_type': media_type}), li, False))
-        except Exception:
-            pass
-
+    # 2. Real-Debrid Resolver (แก้ไข Path เต็ม + เลือกไฟล์วิดีโอใหญ่สุดอัตโนมัติ)
     if rd_key:
         try:
-            res = SESSION.get("https://real-debrid.com", headers={'Authorization': f'Bearer {rd_key}'}, timeout=4, verify=False).json()
-            for item in itertools.islice(res, 30):
-                fname = item.get('filename', '')
-                if kw and kw not in fname.lower():
-                    continue
-                li = xbmcgui.ListItem(label=f"[COLOR gold][Real-Debrid][/COLOR] {fname}", offscreen=True)
-                li.setProperty('IsPlayable', 'true')
-                dir_items.append((build_url({'action': 'play', 'provider': 'rd', 'url': item.get('download'), 'imdb_id': imdb_id, 'm_type': media_type}), li, False))
+            headers = {'Authorization': f'Bearer {rd_key}'}
+            rd_base = "https://" + "api." + "real-debrid.com" + "/rest/1.0"
+            r1 = SESSION.post(f"{rd_base}/torrents/addMagnet", data={'magnet': magnet_uri}, headers=headers, timeout=12).json()
+            tid = r1.get('id')
+            if not tid:
+                err_msg = r1.get('error', 'Invalid Token or Magnet')
+                xbmcgui.Dialog().notification('Real-Debrid', str(err_msg) + ' - Trying next Debrid...', xbmcgui.NOTIFICATION_WARNING, 3000)
+
+            # ดึงรายชื่อไฟล์ในทอร์เรนต์เพื่อเลือกเฉพาะไฟล์วิดีโอขนาดใหญ่สุด (ป้องกันไฟล์ซับ/ตัวอย่างติดมา)
+            info = SESSION.get(f"{rd_base}/torrents/info/{tid}", headers=headers, timeout=12).json()
+            files = info.get('files', list())
+            vid_files = [f for f in files if f.get('path', '').lower().endswith(('.mkv', '.mp4', '.avi', '.mov', '.ts'))]
+            if vid_files:
+                best_file = max(vid_files, key=lambda x: x.get('bytes', 0))
+                file_ids = str(best_file['id'])
+            else:
+                file_ids = 'all'
+
+            SESSION.post(f"{rd_base}/torrents/selectFiles/{tid}", data={'files': file_ids}, headers=headers, timeout=12)
+
+            # รอตรวจสอบสถานะลิงก์พร้อมเล่น (สูงสุด 5 วินาทีสำหรับไฟล์ Cached)
+            for _ in range(5):
+                xbmc.sleep(1000)
+                info = SESSION.get(f"{rd_base}/torrents/info/{tid}", headers=headers, timeout=12).json()
+                links = info.get('links', list())
+                if links:
+                    unres = SESSION.post(f"{rd_base}/unrestrict/link", data={'link': links[0]}, headers=headers, timeout=12).json()
+                    if unres.get('download'):
+                        return unres['download']
+                if info.get('status') in ('downloading', 'queued', 'magnet_conversion'):
+                    xbmcgui.Dialog().notification('Real-Debrid', 'Not cached yet - Trying next Debrid...', xbmcgui.NOTIFICATION_WARNING, 3000)
+                    break
+        except Exception as e:
+            xbmcgui.Dialog().notification('Real-Debrid Error', str(e)[:60], xbmcgui.NOTIFICATION_ERROR, 5000)
+
+    # 3. Premiumize Resolver
+    if pm_key:
+        try:
+            r1 = SESSION.post("https://" + "www.premiumize.me/api/transfer/directdl", data={'apikey': pm_key, 'src': magnet_uri}, timeout=15).json()
+            content = r1.get('content', list())
+            if content:
+                best = max(content, key=lambda x: x.get('size', 0))
+                if best.get('link'):
+                    return best['link']
         except Exception:
             pass
 
-    if not dir_items:
-        msg = txt(
-            f"ไม่พบไฟล์ในคลาวด์ส่วนตัวของคุณ\nติดต่อสอบถามข้อมูล: {TH_SHOP_CONTACT}",
-            "No matching files found in your connected Debrid Clouds."
-        )
-        xbmcgui.Dialog().ok("RyuStream Cloud", msg)
-        return
+    # 4. TorBox Resolver
+    if tb_key:
+        try:
+            headers = {'Authorization': f'Bearer {tb_key}'}
+            r1 = SESSION.post("https://" + "api.torbox.app/v1/api/torrents/createtorrent", data={'magnet': magnet_uri}, headers=headers, timeout=12).json()
+            tid = r1.get('data', {}).get('torrent_id')
+            if tid:
+                xbmc.sleep(1000)
+                r2 = SESSION.get("https://" + "api.torbox.app/v1/api/torrents/requestdl", params={'token': tb_key, 'torrent_id': tid, 'file_id': 0, 'zip_link': 'false'}, timeout=12).json()
+                if r2.get('data'):
+                    return r2['data']
+        except Exception:
+            pass
 
-    xbmcplugin.addDirectoryItems(HANDLE, dir_items, len(dir_items))
-    xbmcplugin.endOfDirectory(HANDLE)
+    return None
 
-def play_video(params):
-    provider = params.get('provider')
-    stream_url = ''
-    try:
-        if provider == 'ad':
-            ad_key = ADDON.getSetting('ad_apikey')
-            res = SESSION.get(f"https://alldebrid.com{AGENT_NAME}&apikey={ad_key}&link={urllib.parse.quote(params.get('url', ''))}", timeout=4.5, verify=False).json()
-            stream_url = res['data']['link']
-        elif provider == 'tb':
-            tb_key = ADDON.getSetting('tb_apikey')
-            res = SESSION.get(f"https://torbox.app{tb_key}&torrent_id={params.get('tid')}&file_id={params.get('fid')}", timeout=4.5, verify=False).json()
-            stream_url = res['data']
-        elif provider == 'rd':
-            stream_url = params.get('url', '')
+def search_internal_streams(imdb_id, media_type='movie', season=1, episode=1, quality_filter='All'):
+    if not imdb_id:
+        return list()
+    strem_type = 'series' if media_type == 'tv' else 'movie'
+    strem_id = f"{imdb_id}:{season}:{episode}" if media_type == 'tv' else imdb_id
 
-        if stream_url:
-            play_item = xbmcgui.ListItem(path=stream_url)
-            imdb_id = params.get('imdb_id', '')
-            m_type = params.get('m_type', 'movie')
-            sub_urls = fetch_submaker_subs(imdb_id, m_type)
-            if sub_urls:
-                play_item.setSubtitles(sub_urls)
-            xbmcplugin.setResolvedUrl(HANDLE, True, listitem=play_item)
-    except Exception as e:
-        xbmcgui.Dialog().notification("Playback Error", str(e), xbmcgui.NOTIFICATION_ERROR)
-class RyuHomeWindow(xbmcgui.WindowXML):
+    sources = list()
+    scrapers = (
+        ("Torrentio", "https://" + f"torrentio.strem.fun/stream/{strem_type}/{strem_id}.json"),
+        ("MediaFusion", "https://" + f"elfhosted.com{strem_type}/{strem_id}.json")
+    )
+
+    for provider, url in scrapers:
+        try:
+            res = SESSION.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=8).json()
+            for s in res.get('streams', list()):
+                title_raw = s.get('title') or s.get('name') or 'Unknown Stream'
+                info_hash = s.get('infoHash', '')
+                if not info_hash:
+                    continue
+
+                # กรองความละเอียดตามปุ่ม Quality Filter บนหน้าจอ
+                low_t = title_raw.lower()
+                if '1080p & 720p' in quality_filter and ('2160p' in low_t or '4k' in low_t):
+                    continue
+                elif '1080p Full HD' in quality_filter and '1080p' not in low_t:
+                    continue
+                elif '4K UHD' in quality_filter and ('2160p' not in low_t and '4k' not in low_t):
+                    continue
+                elif '720p HD' in quality_filter and '720p' not in low_t:
+                    continue
+
+                clean_line = title_raw.replace('\n', ' | ')[:95]
+                magnet = f"magnet:?xt=urn:btih:{info_hash}&dn={urllib.parse.quote(clean_line[:40])}"
+                sources.append({
+                    'label': f"[{provider}] {clean_line}",
+                    'magnet': magnet
+                })
+        except Exception:
+            continue
+
+    return sources[:30]
+
+class QRAuthDialog(xbmcgui.WindowDialog):
+    def __init__(self, title, qr_target_url, display_url, pin_code):
+        super().__init__()
+        self.cancelled = False
+        white_tex = os.path.join(ADDON_PATH, 'resources', 'skins', 'Default', 'media', 'white.png')
+        qr_img_url = "https://" + "api." + "qrserver.com" + "/v1/create-qr-code/?size=320x320&data=" + urllib.parse.quote(qr_target_url)
+
+        self.addControl(xbmcgui.ControlImage(0, 0, 1280, 720, white_tex, colorDiffuse='CC000000'))
+        self.addControl(xbmcgui.ControlImage(340, 80, 600, 560, white_tex, colorDiffuse='FF0F172A'))
+        self.addControl(xbmcgui.ControlLabel(360, 100, 560, 40, f"[B]{title}[/B]", font='font14', textColor='FF10B981', alignment=2))
+        self.addControl(xbmcgui.ControlLabel(360, 140, 560, 30, "Scan QR Code with your phone camera", font='font12', textColor='FFE2E8F0', alignment=2))
+        self.addControl(xbmcgui.ControlImage(480, 180, 320, 320, qr_img_url))
+        self.addControl(xbmcgui.ControlLabel(360, 515, 560, 30, f"URL: [COLOR cyan]{display_url}[/COLOR]", font='font12', textColor='FFFFFFFF', alignment=2))
+        self.addControl(xbmcgui.ControlLabel(360, 545, 560, 35, f"CODE: [COLOR lime][B]{pin_code}[/B][/COLOR]", font='font14', textColor='FFFFFFFF', alignment=2))
+        self.addControl(xbmcgui.ControlLabel(360, 595, 560, 30, "Press ESC or Back to Close", font='font12', textColor='FF94A3B8', alignment=2))
+
+    def onAction(self, action):
+        if action.getId() in (10, 13, 92, 110, 122) or action.getButtonCode() in (27, 61467, 61448):
+            self.cancelled = True
+            self.close()
+
+class RyuHomeWindow(xbmcgui.WindowXMLDialog):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loaded = False
+        self.row1_mode = 'catalog'
+        self.quality_mode = ADDON.getSetting('quality_filter') or 'All (4K / 1080p / 720p)'
+
     def onInit(self):
         xbmc.executebuiltin('Dialog.Close(busydialog)')
         xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
-        self.update_status_bar()
-        self.load_items(fetch_tmdb('trending/all/week'), txt("TRENDING NOW / รายการยอดนิยมสัปดาห์นี้", "TRENDING NOW"))
+        self.update_quality_button()
+        if not self.loaded:
+            self.loaded = True
+            self.load_default_rows()
 
-    def update_status_bar(self):
-        ad_user = ADDON.getSetting('ad_username')
-        badges = []
-        if ADDON.getSetting('ad_apikey') and ADDON.getSettingBool('enable_ad'):
-            badges.append(f"[COLOR lime]AD:{ad_user}[/COLOR]")
-        if ADDON.getSetting('tb_apikey') and ADDON.getSettingBool('enable_tb'):
-            badges.append("[COLOR lime]TB[/COLOR]")
-        if ADDON.getSetting('rd_apikey') and ADDON.getSettingBool('enable_rd'):
-            badges.append("[COLOR lime]RD[/COLOR]")
-        if ADDON.getSetting('trakt_token'):
-            badges.append("[COLOR cyan]Trakt[/COLOR]")
-        if ADDON.getSetting('simkl_token'):
-            badges.append("[COLOR cyan]Simkl[/COLOR]")
-        if ADDON.getSetting('mdblist_apikey'):
-            badges.append("[COLOR gold]MDB[/COLOR]")
-        if ADDON.getSetting('submaker_url'):
-            badges.append("[COLOR cyan]SubMaker[/COLOR]")
+    def update_quality_button(self):
+        short_label = self.quality_mode.split(' ')[0][0]
+        self.getControl(906).setLabel(f"Quality: {short_label}")
 
-        status_txt = " | ".join(badges) if badges else txt(f"ยังไม่เชื่อมต่อบัญชี | {TH_SHOP_CONTACT}", "No Accounts Connected")
-        self.getControl(102).setLabel(status_txt)
+    def onAction(self, action):
+        if action.getId() in (10, 13, 92, 110, 122) or action.getButtonCode() in (27, 61467, 61448):
+            self.close()
 
-    def load_items(self, results, heading):
-        self.getControl(103).setLabel(f"[B]{heading}[/B]")
-        panel = self.getControl(5000)
+    def populate_row(self, panel_id, label_id, endpoint, title, extra_params=None):
+        if panel_id == 5001:
+            self.row1_mode = 'catalog'
+        self.getControl(label_id).setLabel(f"[B]{title}[/B]")
+        items = fetch_tmdb(endpoint, extra_params)
+        panel = self.getControl(panel_id)
         panel.reset()
-        no_plot = txt('ไม่มีเรื่องย่อภาษาไทย', 'No overview available.')
-        list_items = []
+        list_items = list()
+        for item in items:
+            m_title = item.get('title') or item.get('name') or 'Unknown'
+            year = (item.get('release_date') or item.get('first_air_date') or '')[:4]
+            rating = str(round(float(item.get('vote_average', 0)), 1))
+            plot = item.get('overview') or 'No overview available.'
+            p_path = item.get('poster_path')
+            b_path = item.get('backdrop_path')
+            poster = ("https://" + "image." + "tmdb.org/t/p/w342" + p_path) if p_path else ''
+            fanart = ("https://" + "image." + "tmdb.org/t/p/w1280" + b_path) if b_path else ''
+            m_type = item.get('media_type') or ('tv' if 'tv' in endpoint else 'movie')
 
-        for item in results:
-            m_type = item.get('media_type') or ('movie' if item.get('title') else 'tv')
-            if m_type not in ('movie', 'tv'):
-                continue
-
-            title = item.get('title') or item.get('name') or 'Unknown'
-            orig_title = item.get('original_title') or item.get('original_name') or title
-            release_date = item.get('release_date') or item.get('first_air_date') or ''
-            year = release_date[:4] if release_date else ''
-            overview = item.get('overview') or no_plot
-            rating = f"{float(item.get('vote_average') or 0):.1f}"
-
-            poster = f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{item['poster_path']}" if item.get('poster_path') else ''
-            fanart = f"https://twilight-pond-6dfa.suwitsri.workers.dev/3/{item['backdrop_path']}" if item.get('backdrop_path') else ''
-
-            li = xbmcgui.ListItem(label=title, offscreen=True)
-            li.setArt({'poster': poster, 'thumb': poster, 'icon': poster, 'fanart': fanart})
-            li.setProperty('orig_title', orig_title)
+            li = xbmcgui.ListItem(label=m_title)
+            li.setArt({'poster': poster, 'thumb': '', 'icon': poster, 'fanart': fanart})
+            li.setProperty('subtitle', f"TMDb {rating}   |   {year}")
             li.setProperty('tmdb_id', str(item.get('id', '')))
             li.setProperty('media_type', m_type)
-
-            info_tag = li.getVideoInfoTag()
-            info_tag.setTitle(title)
-            info_tag.setPlot(overview)
-            info_tag.setRating(float(rating))
-            if year.isdigit():
-                info_tag.setYear(int(year))
+            li.setInfo('video', {'title': m_title, 'year': int(year) if year.isdigit() else 0, 'rating': float(rating), 'plot': plot})
             list_items.append(li)
 
         if list_items:
             panel.addItems(list_items)
-            self.setFocusId(5000)
-        else:
-            self.getControl(103).setLabel('[COLOR red]No items loaded - Check Internet or TMDb Key[/COLOR]')
+
+    def load_default_rows(self):
+        self.populate_row(5001, 103, 'trending/all/week', 'TRENDING NOW')
+        self.populate_row(5002, 104, 'movie/popular', 'POPULAR MOVIES')
+        self.populate_row(5003, 105, 'discover/tv', 'POPULAR ANIME & SERIES', {'with_genres': '16', 'with_original_language': 'ja', 'sort_by': 'popularity.desc'})
+        self.setFocusId(5001)
+
+    def load_authorize_cards(self):
+        self.row1_mode = 'auth'
+        self.getControl(103).setLabel("[B]DEBRID CLOUD, AUTHORIZE SERVICES & SUPPORT (CLICK TO SCAN QR)[/B]")
+        panel = self.getControl(5001)
+        panel.reset()
+        services = (
+            ('alldebrid', 'AllDebrid', 'alldebrid.png', 'ad_apikey', 'Scan QR Code with your phone to authorize AllDebrid instantly.'),
+            ('realdebrid', 'Real-Debrid', 'realdebrid.png', 'rd_apikey', 'Scan QR Code with your phone to authorize Real-Debrid instantly.'),
+            ('premiumize', 'Premiumize', 'premiumize.png', 'pm_apikey', 'Scan QR Code with your phone to authorize Premiumize.me cloud.'),
+            ('torbox', 'TorBox', 'torbox.png', 'tb_apikey', 'Scan QR Code to open TorBox settings and paste your API Key.'),
+            ('trakt', 'Trakt.tv', 'trakt.png', 'trakt_token', 'Scan QR Code to link your Trakt watchlist & history.'),
+            ('simkl', 'Simkl.com', 'simkl.png', 'simkl_token', 'Scan QR Code to sync Anime & TV tracking with Simkl.'),
+            ('mdblist', 'MDBList.com', 'mdblist.png', 'mdblist_apikey', 'Scan QR Code to open MDBList preferences and paste your API Key.'),
+            ('support', 'Support RyuStream', 'support.png', '', 'Enjoying RyuStream? Scan QR Code to support ongoing updates via Buy Me a Coffee!')
+        )
+        list_items = list()
+        for srv_id, name, img_file, setting_id, desc in services:
+            if srv_id == 'support':
+                status_text = "[COLOR cyan]BUY ME A COFFEE[/COLOR]"
+            else:
+                is_linked = bool(ADDON.getSetting(setting_id).strip())
+                status_text = "[COLOR lime]CONNECTED[/COLOR]" if is_linked else "[COLOR gold]CLICK TO SCAN QR[/COLOR]"
+            icon_path = os.path.join(MEDIA_PATH, img_file)
+            li = xbmcgui.ListItem(label=name)
+            li.setArt({'poster': '', 'thumb': icon_path, 'icon': icon_path, 'fanart': ''})
+            li.setProperty('subtitle', status_text)
+            li.setProperty('srv_id', srv_id)
+            li.setProperty('setting_id', setting_id)
+            li.setInfo('video', {'title': name, 'plot': desc})
+            list_items.append(li)
+
+        panel.addItems(list_items)
+        self.setFocusId(5001)
+
+    def handle_auth_click(self, srv_id, name, setting_id):
+        try:
+            if srv_id == 'support':
+                coffee_url = "https://" + "buymeacoffee.com" + "/ryustream"
+                qr_dlg = QRAuthDialog('Support RyuStream Developer', coffee_url, 'buymeacoffee.com', 'THANK YOU!')
+                qr_dlg.show()
+                while not qr_dlg.cancelled:
+                    xbmc.sleep(500)
+                qr_dlg.close()
+
+            elif srv_id == 'alldebrid':
+                url = "https://" + "api." + "alldebrid.com" + "/v4/pin/get?agent=RyuStream"
+                res = SESSION.get(url, headers={'User-Agent': 'RyuStream/3.0.0'}, timeout=10).json()
+                data = res.get('data', dict())
+                pin = data.get('pin', '')
+                check = data.get('check', '')
+                user_url = data.get('user_url') or ("https://" + "alldebrid.com" + "/pin/?pin=" + pin)
+                base_url = data.get('base_url') or ("https://" + "alldebrid.com" + "/pin")
+                if not pin:
+                    return
+                qr_dlg = QRAuthDialog('Authorize AllDebrid', user_url, base_url, pin)
+                qr_dlg.show()
+                for _ in range(60):
+                    if qr_dlg.cancelled:
+                        break
+                    xbmc.sleep(2000)
+                    chk_url = "https://" + "api." + "alldebrid.com" + f"/v4/pin/check?agent=RyuStream&check={check}&pin={pin}"
+                    chk = SESSION.get(chk_url, headers={'User-Agent': 'RyuStream/3.0.0'}, timeout=8).json()
+                    if chk.get('data', dict()).get('activated'):
+                        ADDON.setSetting('ad_apikey', chk.get('data', dict()).get('apikey', ''))
+                        qr_dlg.close()
+                        xbmcgui.Dialog().notification('AllDebrid', 'Connected via QR Code!', xbmcgui.NOTIFICATION_INFO, 4000)
+                        self.load_authorize_cards()
+                        return
+                qr_dlg.close()
+
+            elif srv_id == 'realdebrid':
+                url = "https://" + "api." + "real-debrid.com" + f"/oauth/v2/device/code?client_id={RD_CLIENT_ID}&new_credentials=yes"
+                res = SESSION.get(url, timeout=10).json()
+                dev_code = res.get('device_code', '')
+                user_code = res.get('user_code', '')
+                ver_url = res.get('verification_url') or ("https://" + "real-debrid.com" + "/device")
+                direct_url = res.get('direct_verification_url') or ver_url
+                if not dev_code:
+                    return
+                qr_dlg = QRAuthDialog('Authorize Real-Debrid', direct_url, ver_url, user_code)
+                qr_dlg.show()
+                for _ in range(60):
+                    if qr_dlg.cancelled:
+                        break
+                    xbmc.sleep(2500)
+                    cred_url = "https://" + "api." + "real-debrid.com" + f"/oauth/v2/device/credentials?client_id={RD_CLIENT_ID}&code={dev_code}"
+                    cred_res = SESSION.get(cred_url, timeout=8)
+                    if cred_res.status_code == 200:
+                        creds = cred_res.json()
+                        tok_url = "https://" + "api." + "real-debrid.com" + "/oauth/v2/token"
+                        tok_data = {
+                            'client_id': creds['client_id'],
+                            'client_secret': creds['client_secret'],
+                            'code': dev_code,
+                            'grant_type': 'http://' + 'oauth.net/grant_type/device/1.0'
+                        }
+                        tok_res = SESSION.post(tok_url, data=tok_data, timeout=8).json()
+                        if tok_res.get('access_token'):
+                            ADDON.setSetting('rd_apikey', tok_res['access_token'])
+                            qr_dlg.close()
+                            xbmcgui.Dialog().notification('Real-Debrid', 'Connected via QR Code!', xbmcgui.NOTIFICATION_INFO, 4000)
+                            self.load_authorize_cards()
+                            return
+                qr_dlg.close()
+
+            elif srv_id == 'premiumize':
+                url = "https://" + "www.premiumize.me/token"
+                res = SESSION.post(url, data={'client_id': PM_CLIENT_ID, 'response_type': 'device_code'}, timeout=10).json()
+                dev_code = res.get('device_code', '')
+                user_code = res.get('user_code', '')
+                ver_url = res.get('verification_uri') or ("https://" + "www.premiumize.me/device")
+                if not dev_code:
+                    return
+                qr_dlg = QRAuthDialog('Authorize Premiumize', f"{ver_url}?user_code={user_code}", ver_url, user_code)
+                qr_dlg.show()
+                for _ in range(60):
+                    if qr_dlg.cancelled:
+                        break
+                    xbmc.sleep(2500)
+                    tok_res = SESSION.post(url, data={'client_id': PM_CLIENT_ID, 'code': dev_code, 'grant_type': 'device_code'}, timeout=8).json()
+                    if tok_res.get('access_token'):
+                        ADDON.setSetting('pm_apikey', tok_res['access_token'])
+                        qr_dlg.close()
+                        xbmcgui.Dialog().notification('Premiumize', 'Connected via QR Code!', xbmcgui.NOTIFICATION_INFO, 4000)
+                        self.load_authorize_cards()
+                        return
+                qr_dlg.close()
+
+            elif srv_id == 'trakt':
+                t_headers = {'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': TRAKT_CLIENT_ID}
+                url = "https://" + "api.trakt.tv/oauth/device/code"
+                r = SESSION.post(url, json={'client_id': TRAKT_CLIENT_ID}, headers=t_headers, timeout=10)
+                if not r.ok:
+                    return
+                res = r.json()
+                dev_code = res.get('device_code', '')
+                user_code = res.get('user_code', '')
+                ver_url = res.get('verification_url') or ("https://" + "trakt.tv/activate")
+                if not dev_code:
+                    return
+                qr_dlg = QRAuthDialog('Authorize Trakt.tv', f"{ver_url}?code={user_code}", ver_url, user_code)
+                qr_dlg.show()
+                for _ in range(60):
+                    if qr_dlg.cancelled:
+                        break
+                    xbmc.sleep(3000)
+                    tok_url = "https://" + "api.trakt.tv/oauth/device/token"
+                    tok_res = SESSION.post(tok_url, json={'code': dev_code, 'client_id': TRAKT_CLIENT_ID}, headers=t_headers, timeout=8)
+                    if tok_res.status_code == 200:
+                        ADDON.setSetting('trakt_token', tok_res.json().get('access_token', ''))
+                        qr_dlg.close()
+                        xbmcgui.Dialog().notification('Trakt.tv', 'Connected via QR Code!', xbmcgui.NOTIFICATION_INFO, 4000)
+                        self.load_authorize_cards()
+                        return
+                qr_dlg.close()
+
+            elif srv_id == 'simkl':
+                url = "https://" + "api." + "simkl.com" + f"/oauth/pin?client_id={SIMKL_CLIENT_ID}"
+                res = SESSION.get(url, timeout=10).json()
+                user_code = res.get('user_code', '')
+                ver_url = res.get('verification_url') or ("https://" + "simkl.com" + "/pin")
+                if not user_code:
+                    return
+                qr_dlg = QRAuthDialog('Authorize Simkl', f"{ver_url}/{user_code}", ver_url, user_code)
+                qr_dlg.show()
+                for _ in range(60):
+                    if qr_dlg.cancelled:
+                        break
+                    xbmc.sleep(3000)
+                    chk_url = "https://" + "api." + "simkl.com" + f"/oauth/pin/{user_code}?client_id={SIMKL_CLIENT_ID}"
+                    chk = SESSION.get(chk_url, timeout=8).json()
+                    if chk.get('result') == 'OK' and chk.get('access_token'):
+                        ADDON.setSetting('simkl_token', chk['access_token'])
+                        qr_dlg.close()
+                        xbmcgui.Dialog().notification('Simkl', 'Connected via QR Code!', xbmcgui.NOTIFICATION_INFO, 4000)
+                        self.load_authorize_cards()
+                        return
+                qr_dlg.close()
+
+            elif srv_id in ('torbox', 'mdblist'):
+                web_url = "https://" + ("torbox.app/settings" if srv_id == 'torbox' else "mdblist.com")
+                qr_dlg = QRAuthDialog(f"{name} API Key", web_url, web_url, "SCAN QR -> COPY API KEY")
+                qr_dlg.show()
+                while not qr_dlg.cancelled:
+                    xbmc.sleep(500)
+                qr_dlg.close()
+                current = ADDON.getSetting(setting_id)
+                kb = xbmc.Keyboard(current, f"Paste {name} API Key")
+                kb.doModal()
+                if kb.isConfirmed():
+                    ADDON.setSetting(setting_id, kb.getText().strip())
+                    xbmcgui.Dialog().notification(name, 'Saved Successfully!', xbmcgui.NOTIFICATION_INFO, 3000)
+                    self.load_authorize_cards()
+
+        except Exception as e:
+            xbmcgui.Dialog().notification(f'{name} Error', str(e)[:60], xbmcgui.NOTIFICATION_ERROR, 5000)
+
+    def play_media_item(self, li):
+        m_title = li.getLabel()
+        tmdb_id = li.getProperty('tmdb_id')
+        m_type = li.getProperty('media_type') or 'movie'
+
+        # ตรวจสอบว่าเชื่อมต่อ Debrid อย่างน้อย 1 บริการหรือยัง
+        has_debrid = any(ADDON.getSetting(k).strip() for k in ('ad_apikey', 'rd_apikey', 'pm_apikey', 'tb_apikey'))
+        if not has_debrid:
+            xbmcgui.Dialog().ok('Debrid Required', 'Please authorize AllDebrid, Real-Debrid, Premiumize, or TorBox in "Debrid Cloud (Authorize)" first.')
+            self.load_authorize_cards()
+            return
+
+        season = 1
+        episode = 1
+        if m_type == 'tv':
+            s_in = xbmcgui.Dialog().numeric(0, f'{m_title} - Season Number', '1')
+            if not s_in:
+                return
+            e_in = xbmcgui.Dialog().numeric(0, f'{m_title} - Episode Number', '1')
+            if not e_in:
+                return
+            season = int(s_in)
+            episode = int(e_in)
+
+        pDlg = xbmcgui.DialogProgress()
+        pDlg.create('RyuStream Internal Scraper', f'Searching streams for {m_title}...')
+        pDlg.update(30)
+        imdb_id = get_imdb_id(tmdb_id, m_type)
+        pDlg.update(60, f'Querying Torrentio & MediaFusion ({self.quality_mode.split(" ")[0][0]})...')
+        streams = search_internal_streams(imdb_id, m_type, season, episode, self.quality_mode)
+        pDlg.close()
+
+        if not streams:
+            xbmcgui.Dialog().notification('No Streams Found', 'Try changing Quality Filter to "All"', xbmcgui.NOTIFICATION_WARNING, 4000)
+            return
+
+        labels = [s['label'] for s in streams]
+        sel = xbmcgui.Dialog().select(f'Select Stream ({len(streams)} found)', labels)
+        if sel < 0:
+            return
+
+        pDlg.create('RyuStream Debrid Engine', 'Resolving high-speed Debrid stream link...')
+        pDlg.update(50)
+        stream_url = resolve_debrid_magnet(streams[sel]['magnet'])
+        pDlg.close()
+
+        if not stream_url:
+            xbmcgui.Dialog().notification('Debrid Error', 'Could not resolve stream link (Check Debrid account)', xbmcgui.NOTIFICATION_ERROR, 5000)
+            return
+
+        play_li = xbmcgui.ListItem(label=m_title, path=stream_url)
+        play_li.setInfo('video', {'title': m_title})
+        xbmc.Player().play(stream_url, play_li)
+
+    def select_quality_filter(self):
+        options = (
+            'All (4K / 1080p / 720p)',
+            '1080p & 720p Only (No 4K - Low RAM TV)',
+            '1080p Full HD Only',
+            '4K UHD / HDR Only',
+            '720p HD Only (Fastest)'
+        )
+        idx = xbmcgui.Dialog().select('Select Preferred Video Quality', list(options))
+        if idx >= 0:
+            self.quality_mode = options[idx]
+            ADDON.setSetting('quality_filter', self.quality_mode)
+            self.update_quality_button()
+            xbmcgui.Dialog().notification('Quality Filter', self.quality_mode, xbmcgui.NOTIFICATION_INFO, 3000)
 
     def onClick(self, controlId):
-        if controlId == 5000:
-            item = self.getControl(5000).getSelectedItem()
-            if item:
-                orig_title = item.getProperty('orig_title')
-                tmdb_id = item.getProperty('tmdb_id')
-                m_type = item.getProperty('media_type')
-                choice = xbmcgui.Dialog().select(item.getLabel(), [
-                    txt("ค้นหาและเล่นไฟล์ใน Debrid Cloud", "Play from Debrid Cloud"),
-                    txt("ดูรายละเอียดเพิ่มเติม & รายชื่อนักแสดง (TMDb)", "Details & Cast (TMDb)")
-                ])
-                if choice == 0:
-                    imdb_id = tmdb_id if str(tmdb_id).startswith('tt') else ''
-                    if not imdb_id:
-                        detail = fetch_tmdb_details(tmdb_id, m_type) or {}
-                        imdb_id = detail.get('external_ids', {}).get('imdb_id', '')
-                    self.close()
-                    xbmc.executebuiltin(f"Container.Update({build_url({'action': 'my_cloud', 'filter': orig_title, 'imdb_id': imdb_id, 'm_type': m_type})})")
-                elif choice == 1:
-                    show_tmdb_extra_info(tmdb_id, m_type)
+        if controlId == 909:
+            self.close()
+        elif controlId == 906:
+            self.select_quality_filter()
         elif controlId == 901:
-            kb = xbmc.Keyboard('', txt('ค้นหาชื่อภาพยนตร์ / ซีรีส์ / อนิเมะ (ไทย หรือ อังกฤษ)', 'Search Movies, TV & Anime'))
+            kb = xbmc.Keyboard('', 'Search Movies, TV Shows & Anime')
             kb.doModal()
             if kb.isConfirmed() and kb.getText().strip():
                 q = kb.getText().strip()
-                self.load_items(fetch_tmdb('search/multi', {'query': q}), f"ผลการค้นหา: {q}")
+                self.populate_row(5001, 103, 'search/multi', f'SEARCH RESULTS: {q.upper()}', {'query': q})
+                self.setFocusId(5001)
         elif controlId == 904:
-            choices = [
-                "TMDb: Trending (ยอดนิยมสัปดาห์นี้)",
-                "TMDb: Popular Movies (ภาพยนตร์ยอดนิยม)",
-                "TMDb: Now Playing (ภาพยนตร์เข้าใหม่)",
-                "TMDb: Popular Series (ซีรีส์ยอดนิยม)",
-                "TMDb: Anime (อนิเมะยอดนิยม)",
-                "Trakt: My Watchlist",
-                "Simkl: My Watchlist",
-                "MDBList: My Lists"
-            ]
-            idx = xbmcgui.Dialog().select(txt("เลือกหมวดหมู่รายการ", "Select Catalog"), choices)
-            if idx >= 0:
-                selected_title = next(itertools.islice(choices, idx, idx + 1), '')
-                if idx == 0:
-                    self.load_items(fetch_tmdb('trending/all/week'), selected_title)
-                elif idx == 1:
-                    self.load_items(fetch_tmdb('movie/popular'), selected_title)
-                elif idx == 2:
-                    self.load_items(fetch_tmdb('movie/now_playing'), selected_title)
-                elif idx == 3:
-                    self.load_items(fetch_tmdb('tv/popular'), selected_title)
-                elif idx == 4:
-                    self.load_items(fetch_tmdb('discover/tv', {'with_genres': '16', 'with_original_language': 'ja', 'sort_by': 'popularity.desc'}), selected_title)
-                elif idx == 5:
-                    self.load_items(get_trakt_watchlist(), selected_title)
-                elif idx == 6:
-                    self.load_items(get_simkl_watchlist(), selected_title)
-                elif idx == 7:
-                    self.load_items(get_mdblist_items(), selected_title)
-        elif controlId == 902:
-            self.close()
-            xbmc.executebuiltin(f"Container.Update({build_url({'action': 'my_cloud'})})")
-        elif controlId == 903:
-            opts = [
-                txt(f"เช็กวันหมดอายุ AllDebrid ({TH_SHOP_CONTACT})", "Check AllDebrid / Support"),
-                "เชื่อมต่อ AllDebrid (PIN)",
-                "เชื่อมต่อ Trakt (PIN)",
-                "เชื่อมต่อ Simkl (PIN)",
-                "เปิดหน้าตั้งค่าทั้งหมด (สวิตช์เปิด-ปิด / TorBox / RD / SubMaker / TMDb)"
-            ]
-            idx = xbmcgui.Dialog().select("RyuStream Accounts", opts)
+            cats = ('Reset Home (3 Rows)', 'Anime (Popular Japanese)', 'Anime Movies', 'Top Rated Movies', 'Popular TV Shows')
+            idx = xbmcgui.Dialog().select('Select Catalog', list(cats))
             if idx == 0:
-                xbmcgui.Dialog().ok("RyuStream Support", txt(f"ติดต่อสอบถาม/ต่ออายุ AllDebrid ได้ที่:\n[COLOR cyan][B]{TH_SHOP_CONTACT}[/B][/COLOR]", f"Support Developer:\n{GLOBAL_DONATE_URL}"))
+                self.load_default_rows()
             elif idx == 1:
-                auth_alldebrid()
-                self.update_status_bar()
+                self.populate_row(5001, 103, 'discover/tv', 'POPULAR ANIME', {'with_genres': '16', 'with_original_language': 'ja', 'sort_by': 'popularity.desc'})
+                self.setFocusId(5001)
             elif idx == 2:
-                auth_trakt()
-                self.update_status_bar()
+                self.populate_row(5001, 103, 'discover/movie', 'ANIME MOVIES', {'with_genres': '16', 'with_original_language': 'ja', 'sort_by': 'popularity.desc'})
+                self.setFocusId(5001)
             elif idx == 3:
-                auth_simkl()
-                self.update_status_bar()
+                self.populate_row(5001, 103, 'movie/top_rated', 'TOP RATED MOVIES')
+                self.setFocusId(5001)
             elif idx == 4:
-                self.close()
-                ADDON.openSettings()
+                self.populate_row(5001, 103, 'tv/popular', 'POPULAR TV SHOWS')
+                self.setFocusId(5001)
+        elif controlId == 902:
+            self.load_authorize_cards()
+        elif controlId in (5001, 5002, 5003):
+            li = self.getControl(controlId).getSelectedItem()
+            if not li:
+                return
+            if controlId == 5001 and self.row1_mode == 'auth':
+                self.handle_auth_click(li.getProperty('srv_id'), li.getLabel(), li.getProperty('setting_id'))
+            else:
+                self.play_media_item(li)
 
-def router(paramstring):
-    params = dict(urllib.parse.parse_qsl(paramstring))
-    action = params.get('action')
-
-    if action is None:
-        xbmc.executebuiltin('Dialog.Close(busydialog)')
-        xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
-        if not get_tmdb_key():
-            ADDON.openSettings()
-            return
-        ui = RyuHomeWindow('ryu_home.xml', ADDON_PATH, 'default', '1080i')
-        ui.doModal()
-        del ui
-    elif action == 'my_cloud':
-        list_all_clouds(params.get('filter'), params.get('imdb_id', ''), params.get('m_type', 'movie'))
-    elif action == 'play':
-        play_video(params)
-    elif action == 'auth_alldebrid':
-        auth_alldebrid()
-    elif action == 'auth_trakt':
-        auth_trakt()
-    elif action == 'auth_simkl':
-        auth_simkl()
+def router():
+    xbmc.executebuiltin('Dialog.Close(busydialog)')
+    xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+    ui = RyuHomeWindow('ryu_home.xml', ADDON_PATH, 'default', '1080i')
+    ui.doModal()
+    del ui
 
 if __name__ == '__main__':
-    router(PARAM_STR)
+    router()

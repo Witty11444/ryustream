@@ -1,22 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.ryustream" name="RyuStream" version="2.2.5" provider-name="RyuStream Official">
-    <requires>
-        <import addon="xbmc.python" version="3.0.1"/>
-        <import addon="script.module.requests" version="2.2.5"/>
-    </requires>
-    <extension point="xbmc.python.pluginsource" library="default.py">
-        <provides>video</provides>
-    </extension>
-    <extension point="xbmc.addon.metadata">
-        <summary lang="en">RyuStream - All-In-One Debrid, Trakt, Simkl &amp; MDBList Hub</summary>
-        <summary lang="th">RyuStream - ศูนย์รวม AllDebrid, TorBox, Real-Debrid, Trakt, Simkl และ MDBList ความเร็วสูง</summary>
-        <description lang="en">Ultra-fast Kodi media hub supporting AllDebrid, TorBox, Real-Debrid, Trakt, Simkl, and MDBList with custom TV UI.</description>
-        <description lang="th">เครื่องมือจัดการคลาวด์และรายการโปรดครบวงจร รองรับ AllDebrid, TorBox, Real-Debrid, Trakt, Simkl และ MDBList ปรับจูนความเร็วเพื่อ Android TV</description>
-        <platform>all</platform>
-        <license>GPL-3.0-only</license>
-        <assets>
-            <icon>icon.png</icon>
-            <fanart>fanart.jpg</fanart>
-        </assets>
-    </extension>
+<addon id="plugin.video.ryustream" name="RyuStream" version="3.0.7" provider-name="RyuStream">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.requests" version="2.22.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">RyuStream - Lightweight Debrid &amp; Cloud Media Hub</summary>
+    <description lang="en_GB">Fast, ultra-lightweight Kodi video addon with QR Device Auth, Internal Scrapers, and Multi-Debrid support.</description>
+    <platform>all</platform>
+    <assets>
+      <icon>icon.png</icon>
+      <fanart>fanart.jpg</fanart>
+    </assets>
+  </extension>
 </addon>

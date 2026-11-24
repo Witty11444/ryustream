@@ -1,33 +1,106 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <window>
-    <defaultcontrol always="true">5000</defaultcontrol>
+    <defaultcontrol always="true">5001</defaultcontrol>
     <controls>
-        <control type="image"><left>0</left><top>0</top><width>1920</width><height>1080</height><texture colordiffuse="FF080C14">white.png</texture></control>
-        <control type="image" id="101"><left>0</left><top>0</top><width>1920</width><height>1080</height><aspectratio>scale</aspectratio><fadetime>250</fadetime><texture>$INFO[Container(5000).ListItem.Art(fanart)]</texture></control>
-        <control type="image"><left>0</left><top>0</top><width>1920</width><height>1080</height><texture colordiffuse="D9080C14">white.png</texture></control>
-        <control type="image"><left>0</left><top>0</top><width>1920</width><height>95</height><texture colordiffuse="E60F172A">white.png</texture></control>
-        <control type="image"><left>0</left><top>95</top><width>1920</width><height>2</height><texture colordiffuse="FF10B981">white.png</texture></control>
-        <control type="label"><left>50</left><top>22</top><width>300</width><height>50</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]RYUSTREAM[/B]</label></control>
+        <control type="image"><left>0</left><top>0</top><width>1920</width><height>1080</height><texture colordiffuse="FF0B111E">white.png</texture></control>
+        <control type="image" id="101"><left>0</left><top>0</top><width>1920</width><height>1080</height><aspectratio>scale</aspectratio><fadetime>250</fadetime><texture>$INFO[Container.ListItem.Art(fanart)]</texture></control>
+        <control type="image"><left>0</left><top>0</top><width>1920</width><height>1080</height><texture colordiffuse="A80B111E">white.png</texture></control>
+
+        <control type="image"><left>0</left><top>0</top><width>1920</width><height>88</height><texture colordiffuse="CC0B111E">white.png</texture></control>
+        <control type="image"><left>0</left><top>88</top><width>1920</width><height>1</height><texture colordiffuse="3310B981">white.png</texture></control>
+
+        <control type="image"><left>40</left><top>16</top><width>56</width><height>56</height><aspectratio>keep</aspectratio><texture>ryu_logo.png</texture></control>
+        <control type="label"><left>108</left><top>20</top><width>240</width><height>48</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]RYUSTREAM[/B]</label></control>
+
         <control type="grouplist" id="9000">
-            <left>350</left><top>20</top><width>1050</width><height>55</height><orientation>horizontal</orientation><itemgap>12</itemgap><ondown>5000</ondown>
-            <control type="button" id="901"><width>190</width><height>55</height><label>Search</label><font>font13</font><align>center</align><textcolor>FFE2E8F0</textcolor><focusedcolor>FF080C14</focusedcolor><texturenofocus colordiffuse="FF1E293B">white.png</texturenofocus><texturefocus colordiffuse="FF10B981">white.png</texturefocus></control>
-            <control type="button" id="904"><width>240</width><height>55</height><label>Catalogs &amp; Lists</label><font>font13</font><align>center</align><textcolor>FFE2E8F0</textcolor><focusedcolor>FF080C14</focusedcolor><texturenofocus colordiffuse="FF1E293B">white.png</texturenofocus><texturefocus colordiffuse="FF10B981">white.png</texturefocus></control>
-            <control type="button" id="902"><width>220</width><height>55</height><label>Debrid Cloud</label><font>font13</font><align>center</align><textcolor>FFE2E8F0</textcolor><focusedcolor>FF080C14</focusedcolor><texturenofocus colordiffuse="FF1E293B">white.png</texturenofocus><texturefocus colordiffuse="FF10B981">white.png</texturefocus></control>
-            <control type="button" id="903"><width>250</width><height>55</height><label>Accounts &amp; Settings</label><font>font13</font><align>center</align><textcolor>FFE2E8F0</textcolor><focusedcolor>FF080C14</focusedcolor><texturenofocus colordiffuse="FF1E293B">white.png</texturenofocus><texturefocus colordiffuse="FF10B981">white.png</texturefocus></control>
+            <left>350</left><top>18</top><width>1360</width><height>54</height><orientation>horizontal</orientation><itemgap>20</itemgap><ondown>5001</ondown>
+            <control type="button" id="901"><width>140</width><height>54</height><label>Search</label><font>font13</font><align>center</align><textcolor>FFFFFFFF</textcolor><focusedcolor>FFCBD5E1</focusedcolor><texturenofocus></texturenofocus><texturefocus></texturefocus><animation effect="zoom" start="100" end="110" time="120" center="auto">Focus</animation></control>
+            <control type="button" id="904"><width>240</width><height>54</height><label>Catalogs &amp; Anime</label><font>font13</font><align>center</align><textcolor>FFFFFFFF</textcolor><focusedcolor>FFCBD5E1</focusedcolor><texturenofocus></texturenofocus><texturefocus></texturefocus><animation effect="zoom" start="100" end="110" time="120" center="auto">Focus</animation></control>
+            <control type="button" id="902"><width>290</width><height>54</height><label>Debrid Cloud (Authorize)</label><font>font13</font><align>center</align><textcolor>FFFFFFFF</textcolor><focusedcolor>FFCBD5E1</focusedcolor><texturenofocus></texturenofocus><texturefocus></texturefocus><animation effect="zoom" start="100" end="110" time="120" center="auto">Focus</animation></control>
+            <control type="button" id="906"><width>220</width><height>54</height><label>Quality: All</label><font>font13</font><align>center</align><textcolor>FFFFFFFF</textcolor><focusedcolor>FFCBD5E1</focusedcolor><texturenofocus></texturenofocus><texturefocus></texturefocus><animation effect="zoom" start="100" end="110" time="120" center="auto">Focus</animation></control>
+            <control type="button" id="909"><width>110</width><height>54</height><label>Exit</label><font>font13</font><align>center</align><textcolor>FFFFFFFF</textcolor><focusedcolor>FFF87171</focusedcolor><texturenofocus></texturenofocus><texturefocus></texturefocus><animation effect="zoom" start="100" end="110" time="120" center="auto">Focus</animation></control>
         </control>
-        <control type="label" id="102"><left>1410</left><top>28</top><width>460</width><height>40</height><align>right</align><font>font12</font><textcolor>FF94A3B8</textcolor><label>RyuStream Ready</label></control>
-        <control type="image"><left>60</left><top>135</top><width>270</width><height>405</height><aspectratio>scale</aspectratio><fadetime>200</fadetime><texture>$INFO[Container(5000).ListItem.Art(poster)]</texture></control>
-        <control type="label"><left>370</left><top>145</top><width>1450</width><height>65</height><font>font14</font><textcolor>FFFFFFFF</textcolor><label>[B]$INFO[Container(5000).ListItem.Label][/B]</label></control>
-        <control type="label"><left>370</left><top>225</top><width>800</width><height>40</height><font>font13</font><textcolor>FF10B981</textcolor><label>[B]TMDb $INFO[Container(5000).ListItem.Rating]   |   $INFO[Container(5000).ListItem.Year][/B]</label></control>
-        <control type="textbox"><left>370</left><top>280</top><width>1350</width><height>250</height><font>font13</font><textcolor>FFCBD5E1</textcolor><label>$INFO[Container(5000).ListItem.Plot]</label></control>
-        <control type="label" id="103"><left>60</left><top>580</top><width>1000</width><height>40</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]TRENDING NOW[/B]</label></control>
-        <control type="panel" id="5000">
-            <left>60</left><top>630</top><width>1800</width><height>410</height><orientation>horizontal</orientation><onup>9000</onup>
-            <itemlayout width="250" height="390"><control type="image"><left>10</left><top>10</top><width>230</width><height>345</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control></itemlayout>
-            <focusedlayout width="250" height="390">
-                <control type="image"><left>3</left><top>3</top><width>244</width><height>359</height><texture colordiffuse="FF10B981">white.png</texture></control>
-                <control type="image"><left>10</left><top>10</top><width>230</width><height>345</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control>
-            </focusedlayout>
+        <control type="label" id="102"><left>1720</left><top>26</top><width>160</width><height>38</height><align>right</align><font>font12</font><textcolor>FF64748B</textcolor><label>v3.0.7</label></control>
+
+        <control type="group">
+            <left>50</left><top>115</top><width>250</width><height>375</height>
+            <control type="image"><left>0</left><top>0</top><width>250</width><height>375</height><aspectratio>scale</aspectratio><fadetime>200</fadetime><texture>$INFO[Container.ListItem.Art(poster)]</texture></control>
+            <control type="image"><left>65</left><top>127</top><width>120</width><height>120</height><aspectratio>keep</aspectratio><fadetime>200</fadetime><texture>$INFO[Container.ListItem.Art(thumb)]</texture></control>
+            <control type="image"><left>0</left><top>0</top><width>250</width><height>375</height><texture>poster_mask.png</texture></control>
+        </control>
+        <control type="label"><left>340</left><top>125</top><width>1520</width><height>60</height><font>font14</font><textcolor>FFFFFFFF</textcolor><label>[B]$INFO[Container.ListItem.Label][/B]</label></control>
+        <control type="label"><left>340</left><top>195</top><width>900</width><height>40</height><font>font13</font><textcolor>FF10B981</textcolor><label>[B]$INFO[Container.ListItem.Property(subtitle)][/B]</label></control>
+        <control type="textbox"><left>340</left><top>245</top><width>1500</width><height>235</height><font>font13</font><textcolor>FFCBD5E1</textcolor><label>$INFO[Container.ListItem.Plot]</label></control>
+
+        <control type="grouplist" id="8000">
+            <left>30</left><top>520</top><width>1860</width><height>560</height>
+            <orientation>vertical</orientation>
+            <itemgap>15</itemgap>
+            <scrolltime>250</scrolltime>
+            <onup>9000</onup>
+
+            <control type="group">
+                <width>1860</width><height>460</height>
+                <control type="label" id="103"><left>10</left><top>0</top><width>1200</width><height>40</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]TRENDING NOW[/B]</label></control>
+                <control type="panel" id="5001">
+                    <left>0</left><top>45</top><width>1860</width><height>410</height><orientation>horizontal</orientation><onup>9000</onup><ondown>5002</ondown>
+                    <itemlayout width="255" height="400">
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture border="22" colordiffuse="FF0F172A">pill.png</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Art(poster)]</texture></control>
+                        <control type="image"><left>62</left><top>115</top><width>130</width><height>130</height><visible>!String.IsEmpty(ListItem.Art(thumb))</visible><texture border="22" colordiffuse="FFF1F5F9">pill.png</texture></control>
+                        <control type="image"><left>72</left><top>125</top><width>110</width><height>110</height><aspectratio>keep</aspectratio><texture>$INFO[ListItem.Art(thumb)]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FFE2E8F0</textcolor><label>$INFO[ListItem.Label]</label></control>
+                    </itemlayout>
+                    <focusedlayout width="255" height="400">
+                        <control type="image"><left>3</left><top>3</top><width>249</width><height>364</height><texture border="22" colordiffuse="FF10B981">pill.png</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture border="22" colordiffuse="FF0F172A">pill.png</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Art(poster)]</texture></control>
+                        <control type="image"><left>62</left><top>115</top><width>130</width><height>130</height><visible>!String.IsEmpty(ListItem.Art(thumb))</visible><texture border="22" colordiffuse="FFF1F5F9">pill.png</texture></control>
+                        <control type="image"><left>72</left><top>125</top><width>110</width><height>110</height><aspectratio>keep</aspectratio><texture>$INFO[ListItem.Art(thumb)]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FF10B981</textcolor><label>[B]$INFO[ListItem.Label][/B]</label></control>
+                    </focusedlayout>
+                </control>
+            </control>
+
+            <control type="group">
+                <width>1860</width><height>460</height>
+                <control type="label" id="104"><left>10</left><top>0</top><width>1200</width><height>40</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]POPULAR MOVIES[/B]</label></control>
+                <control type="panel" id="5002">
+                    <left>0</left><top>45</top><width>1860</width><height>410</height><orientation>horizontal</orientation><onup>5001</onup><ondown>5003</ondown>
+                    <itemlayout width="255" height="400">
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FFE2E8F0</textcolor><label>$INFO[ListItem.Label]</label></control>
+                    </itemlayout>
+                    <focusedlayout width="255" height="400">
+                        <control type="image"><left>3</left><top>3</top><width>249</width><height>364</height><texture border="22" colordiffuse="FF10B981">pill.png</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FF10B981</textcolor><label>[B]$INFO[ListItem.Label][/B]</label></control>
+                    </focusedlayout>
+                </control>
+            </control>
+
+            <control type="group">
+                <width>1860</width><height>460</height>
+                <control type="label" id="105"><left>10</left><top>0</top><width>1200</width><height>40</height><font>font14</font><textcolor>FF10B981</textcolor><label>[B]POPULAR ANIME &amp; SERIES[/B]</label></control>
+                <control type="panel" id="5003">
+                    <left>0</left><top>45</top><width>1860</width><height>410</height><orientation>horizontal</orientation><onup>5002</onup>
+                    <itemlayout width="255" height="400">
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FFE2E8F0</textcolor><label>$INFO[ListItem.Label]</label></control>
+                    </itemlayout>
+                    <focusedlayout width="255" height="400">
+                        <control type="image"><left>3</left><top>3</top><width>249</width><height>364</height><texture border="22" colordiffuse="FF10B981">pill.png</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><aspectratio>scale</aspectratio><texture>$INFO[ListItem.Icon]</texture></control>
+                        <control type="image"><left>10</left><top>10</top><width>235</width><height>350</height><texture>poster_mask.png</texture></control>
+                        <control type="label"><left>10</left><top>365</top><width>235</width><height>30</height><font>font12</font><align>center</align><textcolor>FF10B981</textcolor><label>[B]$INFO[ListItem.Label][/B]</label></control>
+                    </focusedlayout>
+                </control>
+            </control>
         </control>
     </controls>
 </window>
