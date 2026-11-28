@@ -5,7 +5,7 @@
         <setting id="enable_ad" type="bool" label="Enable AllDebrid Cloud" default="true"/>
         <setting id="ad_apikey" type="text" label="AllDebrid API Key" default="" enable="false"/>
         <setting id="ad_username" type="text" label="AllDebrid User" default="-" enable="false"/>
-        <setting type="action" label=">> Authorize AllDebrid (PIN) <<" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_alldebrid)"/>
+        <setting type="action" label="&gt;&gt; Authorize AllDebrid (PIN) &lt;&lt;" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_alldebrid)"/>
         <setting type="sep"/>
 
         <setting label="[COLOR gold]TorBox &amp; Real-Debrid (Optional)[/COLOR]" type="lsep"/>
@@ -13,7 +13,12 @@
         <setting id="tb_apikey" type="text" label="TorBox API Key" default="" enable="eq(-1,true)"/>
         <setting id="enable_rd" type="bool" label="Enable Real-Debrid Cloud" default="true"/>
         <setting id="rd_apikey" type="text" label="Real-Debrid API Token" default="" enable="eq(-1,true)"/>
+        <setting id="enable_pm" type="bool" label="Enable Premiumize Cloud" default="true"/>
+        <setting id="pm_apikey" type="text" label="Premiumize Access Token" default="" enable="eq(-1,true)"/>
         <setting type="sep"/>
+
+        <setting id="quality_filter" type="text" label="Preferred Video Quality" default="All (4K / 1080p / 720p)" visible="false"/>
+        <setting id="scraper_mode" type="text" label="Scraper Engine" default="Internal" visible="false"/>
 
         <setting label="TH Support: LINE ID @631llmic | Global: ://buymeacoffee.com" type="lsep"/>
     </category>
@@ -21,12 +26,12 @@
     <category label="2. Trakt / Simkl / MDBList">
         <setting label="[COLOR lime]Trakt.tv[/COLOR]" type="lsep"/>
         <setting id="trakt_token" type="text" label="Trakt Access Token" default="" enable="false"/>
-        <setting type="action" label=">> Authorize Trakt (PIN) <<" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_trakt)"/>
+        <setting type="action" label="&gt;&gt; Authorize Trakt (PIN) &lt;&lt;" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_trakt)"/>
         <setting type="sep"/>
 
         <setting label="[COLOR cyan]Simkl.com[/COLOR]" type="lsep"/>
         <setting id="simkl_token" type="text" label="Simkl Access Token" default="" enable="false"/>
-        <setting type="action" label=">> Authorize Simkl (PIN) <<" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_simkl)"/>
+        <setting type="action" label="&gt;&gt; Authorize Simkl (PIN) &lt;&lt;" action="RunPlugin(plugin://plugin.video.ryustream/?action=auth_simkl)"/>
         <setting type="sep"/>
 
         <setting label="[COLOR gold]MDBList.com[/COLOR]" type="lsep"/>
@@ -38,8 +43,8 @@
     </category>
 
     <category label="4. Subtitles (SubMaker)">
-        <setting label="[COLOR cyan]SubMaker ElfHosted Add-on[/COLOR]" type="lsep"/>
-        <setting id="submaker_url" type="text" label="SubMaker Manifest URL" default=""/>
+        <setting label="[COLOR cyan]SubMaker ElfHosted subtitles[/COLOR]" type="lsep"/>
+        <setting id="submaker_url" type="text" label="SubMaker install / manifest URL (optional)" default=""/>
     </category>
 
     <category label="5. Maintenance">

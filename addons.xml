@@ -20,10 +20,11 @@
     </assets>
   </extension>
 </addon>
-<addon id="plugin.video.ryustream" name="RyuStream" version="3.3.6" provider-name="RyuStream">
+<addon id="plugin.video.ryustream" name="RyuStream" version="3.4.31" provider-name="RyuStream">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests" version="2.22.0"/>
+    <import addon="script.module.cocoscrapers" version="1.0.0"/>
   </requires>
   <extension point="xbmc.python.pluginsource" library="default.py">
     <provides>video</provides>
